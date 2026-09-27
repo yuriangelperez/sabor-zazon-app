@@ -5,7 +5,13 @@
   "main": "src/index.ts",
   "types": "src/index.ts",
   "peerDependencies": {
+    "@expo-google-fonts/poppins": "*",
+    "expo-font": "*",
     "react": "*",
-    "react-native": "*"
+    "react-native": "*",
+    "react-native-safe-area-context": "*"
+  },
+  "dependencies": {
+    "@sabor/types": "*"
   }
 }

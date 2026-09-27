@@ -1,5 +1,5 @@
-import { View, Text } from 'react-native';
-import { colors, spacing, typography } from '@sabor/ui';
+import { View } from 'react-native';
+import { colors, spacing, Text, typography } from '@sabor/ui';
 
 // RF-15 / RF-16: resumen de ventas con filtros de fecha y gráficos.
 export default function Ventas() {

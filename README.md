@@ -2,10 +2,11 @@
 
 Estructura:
 
-- `apps/customer` — Landing + menú + carrito + checkout + seguimiento (RF-01 a RF-08)
+- `apps/landing` — Landing en HTML/CSS/JS con los productos; sus botones llevan a la web de pedidos
+- `apps/customer` — Web/app de pedidos: menú + carrito + checkout + seguimiento (RF-01 a RF-08)
 - `apps/staff` — Portal de recepción de pedidos (RF-09 a RF-13)
 - `apps/owner` — Dashboard financiero de la dueña (RF-14 a RF-20)
-- `packages/ui` — Theme y componentes compartidos (colores oficiales en `theme.ts`)
+- `packages/ui` — Theme (colores y Poppins de web-sabor-sazon.vercel.app), encabezado con la bandera y componentes compartidos
 - `packages/types` — Tipos compartidos: `Producto`, `Orden`, `Usuario`, `Cupon`
 - `packages/api-client` — Cliente único de Supabase
 - `packages/utils` — Utilidades (formateo de precios, etc.)
@@ -23,11 +24,34 @@ cp apps/owner/.env.example apps/owner/.env
 # y cargar EXPO_PUBLIC_SUPABASE_URL / EXPO_PUBLIC_SUPABASE_ANON_KEY de tu proyecto Supabase
 
 # 3. Levantar cada app
-npm run customer:web   # landing + pedidos, en el navegador
-npm run customer       # landing + pedidos, con Expo Go / QR
+npm run landing        # landing HTML en http://localhost:3000
+npm run customer:web   # web de pedidos, en el navegador (http://localhost:8081)
+npm run customer       # app de pedidos, con Expo Go / QR
+npm run staff          # recepción: pedidos en vivo + administración del menú
 npm run staff:web      # portal de recepción
 npm run owner:web      # dashboard financiero
 ```
+
+## Base de datos (Supabase)
+
+Todo vive en el esquema `saborsazon` (no choca con otros proyectos en `public`).
+
+1. **SQL Editor** → pegar y ejecutar `supabase/migrations/0001_esquema.sql`.
+2. **SQL Editor** → pegar y ejecutar `supabase/seed.sql` (menú, zonas de envío,
+   ingredientes y datos de transferencia). Se puede volver a correr sin duplicar.
+3. **Project Settings → Data API → Exposed schemas** → agregar `saborsazon` y guardar.
+4. **Project Settings → API** → copiar *Project URL* y *anon public key* en el
+   `.env` de cada app (`apps/customer/.env`, `apps/staff/.env`).
+5. **Usuarios de recepción / dueña**: Authentication → Users → *Add user*
+   (email + contraseña, marcar *Auto Confirm*). Después, en el SQL Editor:
+
+   ```sql
+   update saborsazon.perfiles set rol = 'recepcionista' where email = 'recepcion@tu-mail.com';
+   update saborsazon.perfiles set rol = 'duena'         where email = 'duena@tu-mail.com';
+   ```
+
+Para cambiar el menú inicial: editar `supabase/catalogo-inicial.ts` y correr
+`npm run seed:generar`. Después, el día a día se administra desde la app de staff.
 
 ## Por qué esta estructura
 

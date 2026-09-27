@@ -1,0 +1,150 @@
+<!DOCTYPE html>
+<html lang="es">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Sabor y Sazón | El auténtico sabor venezolano</title>
+    <meta name="description" content="Arepas, empanadas, tequeños y combos venezolanos caseros en Manuel Alberti, Pilar. Pedí directo y ahorrá un 20%.">
+    <link rel="icon" type="image/png" href="assets/logo.png">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="styles.css">
+</head>
+
+<body>
+
+    <nav class="navbar">
+        <a href="#inicio" class="logo">
+            <img src="assets/logo.png" alt="Logo Sabor y Sazón" class="logo-img">
+            <span class="logo-text">Sabor y Sazón</span>
+        </a>
+
+        <button class="menu-toggle" id="menu-toggle" aria-label="Abrir menú" aria-expanded="false" aria-controls="nav-links">
+            <span class="bar"></span>
+            <span class="bar"></span>
+            <span class="bar"></span>
+        </button>
+
+        <ul class="nav-links" id="nav-links">
+            <li><a href="#inicio">Inicio</a></li>
+            <li><a href="#combos">Combos</a></li>
+            <li><a href="#arepas">Arepas</a></li>
+            <li><a href="#empanadas">Empanadas</a></li>
+            <li><a href="#tequenos">Tequeños</a></li>
+            <li><a href="#contacto">Contacto</a></li>
+            <li><a href="#" class="destacada" data-link-pedidos="/menu">Hacer mi pedido</a></li>
+        </ul>
+    </nav>
+
+    <div id="estado-local" class="estado-local hidden" role="status" aria-live="polite">
+        El local se encuentra cerrado por el momento. Horario de atención: 10:00 a 22:00 hs.
+    </div>
+
+    <header id="inicio" class="hero">
+        <div class="hero-content">
+            <h1>El auténtico sabor venezolano en tu mesa</h1>
+            <p>Disfrutá de las mejores arepas, empanadas y tequeños preparados como en Venezuela.</p>
+            <div class="hero-buttons">
+                <a href="#" class="btn btn-primary" data-link-pedidos="/menu">Hacer mi pedido</a>
+                <a href="#menu" class="btn btn-outline">Ver productos</a>
+            </div>
+        </div>
+    </header>
+
+    <main>
+        <section id="menu" class="menu-section">
+            <div class="menu-container">
+                <div class="menu-header">
+                    <span class="menu-tag">Carta tradicional</span>
+                    <h2>Sabor &amp; Sazón</h2>
+                    <p class="subtitle">El auténtico sabor venezolano hecho en casa</p>
+                    <div class="header-line"></div>
+                </div>
+
+                <nav class="category-nav" aria-label="Categorías">
+                    <a href="#combos">Combos</a>
+                    <a href="#arepas">Arepas</a>
+                    <a href="#empanadas">Empanadas</a>
+                    <a href="#tequenos">Tequeños</a>
+                </nav>
+
+                <!-- Las tarjetas se generan desde catalogo.js -->
+                <div id="catalogo"></div>
+
+                <div class="promo-banner">
+                    <span class="promo-badge">Ahorro exclusivo</span>
+                    <h3>¡Pedí directo y ahorrá un 20%!</h3>
+                    <p>Evitá las comisiones excesivas de las apps de delivery. Comprando directamente por nuestros
+                        canales oficiales te garantizamos un precio un 20% más barato que en PedidosYa.</p>
+                    <a href="#" class="btn btn-primary" data-link-pedidos="/menu">Armar mi pedido ahora</a>
+                </div>
+            </div>
+        </section>
+
+        <section class="historia-section">
+            <div class="historia-container">
+                <span class="menu-tag">Nuestra historia</span>
+                <p>Nacimos con la misión de traer el auténtico calor y sabor de Venezuela directo a tu mesa. Cada
+                    arepa, empanada y tequeño está preparado de forma casera, utilizando recetas tradicionales y los
+                    mejores ingredientes para que en cada bocado te sientas como en Venezuela.</p>
+            </div>
+        </section>
+
+        <section id="contacto" class="contacto-section">
+            <div class="contacto-container">
+                <article class="contacto-card">
+                    <div class="contacto-icon" aria-hidden="true">🕒</div>
+                    <h3>Nuestros horarios</h3>
+                    <div class="contacto-line"></div>
+                    <ul class="horarios-list">
+                        <li><span class="dias">Lunes a Domingo</span><span class="horas">10:00 a 22:00</span></li>
+                    </ul>
+                    <p class="contacto-nota">* Los horarios pueden variar en días feriados.</p>
+                </article>
+
+                <article class="contacto-card">
+                    <div class="contacto-icon" aria-hidden="true">📍</div>
+                    <h3>Ubicación</h3>
+                    <div class="contacto-line"></div>
+                    <p class="contacto-texto-importante">San Ignacio 663</p>
+                    <p class="contacto-detalle">Manuel Alberti, Pilar, Buenos Aires, Argentina</p>
+                    <a class="canal-link"
+                        href="https://www.google.com/maps/search/?api=1&query=San+Ignacio+663,+Manuel+Alberti,+Pilar,+Buenos+Aires"
+                        target="_blank" rel="noopener">Ver en Maps</a>
+                </article>
+
+                <article class="contacto-card">
+                    <div class="contacto-icon" aria-hidden="true">📞</div>
+                    <h3>Contacto directo</h3>
+                    <div class="contacto-line"></div>
+                    <p class="contacto-detalle">¿Tenés alguna duda con tu pedido, catering o evento?</p>
+                    <div class="contacto-canales">
+                        <a class="canal-link whatsapp" href="https://wa.me/5491125523930" target="_blank"
+                            rel="noopener">WhatsApp: +54 9 11 2552-3930</a>
+                        <a class="canal-link whatsapp" href="https://wa.me/5493757612971" target="_blank"
+                            rel="noopener">WhatsApp: +54 9 3757 61-2971</a>
+                    </div>
+                </article>
+            </div>
+        </section>
+    </main>
+
+    <footer class="footer">
+        <img src="assets/logo.png" alt="" class="footer-logo">
+        <p class="footer-marca">Sabor y Sazón</p>
+        <p>El auténtico sabor venezolano</p>
+        <p class="footer-copy">© <span id="anio"></span> Sabor y Sazón. Todos los derechos reservados.</p>
+    </footer>
+
+    <a href="#" class="pedido-flotante" data-link-pedidos="/menu" aria-label="Hacer mi pedido">
+        <span aria-hidden="true">🛒</span> Hacer mi pedido
+    </a>
+
+    <script src="config.js"></script>
+    <script src="catalogo.js"></script>
+    <script src="main.js"></script>
+</body>
+
+</html>

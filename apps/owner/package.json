@@ -10,6 +10,7 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
+    "@expo-google-fonts/poppins": "^0.4.1",
     "@expo/metro-runtime": "~57.0.16",
     "@react-native-async-storage/async-storage": "2.2.0",
     "@sabor/api-client": "*",
@@ -18,6 +19,8 @@
     "@sabor/utils": "*",
     "expo": "~57.0.25",
     "expo-constants": "~57.0.19",
+    "expo-font": "~57.0.4",
+    "expo-linear-gradient": "~57.0.2",
     "expo-linking": "~57.0.11",
     "expo-router": "~57.0.23",
     "expo-status-bar": "~57.0.1",

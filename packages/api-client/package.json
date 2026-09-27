@@ -5,7 +5,10 @@
   "main": "src/index.ts",
   "types": "src/index.ts",
   "dependencies": {
-    "@supabase/supabase-js": "^2.45.0",
-    "@sabor/types": "*"
+    "@sabor/types": "*",
+    "@supabase/supabase-js": "^2.117.2"
+  },
+  "peerDependencies": {
+    "@react-native-async-storage/async-storage": "*"
   }
 }

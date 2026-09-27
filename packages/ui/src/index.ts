@@ -1,4 +1,9 @@
 export * from './theme';
-
-// A medida que migremos componentes de apps/customer y apps/staff,
-// se exportan acá: Button, ProductCard, QuantityStepper, CategoryTabs, etc.
+export * from './Text';
+export * from './fuentes';
+export * from './Button';
+export * from './Chip';
+export * from './QuantityStepper';
+export * from './EncabezadoBandera';
+export * from './Selector';
+export * from './imagenes';

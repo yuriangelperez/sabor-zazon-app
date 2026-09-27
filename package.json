@@ -15,7 +15,9 @@
     "owner": "npm run start --workspace=apps/owner",
     "owner:web": "npm run web --workspace=apps/owner",
     "typecheck": "npm run typecheck --workspaces --if-present",
-    "lint": "npm run lint --workspaces --if-present"
+    "lint": "npm run lint --workspaces --if-present",
+    "landing": "npm run start --workspace=apps/landing",
+    "seed:generar": "npx --yes tsx supabase/generar-seed.ts"
   },
   "devDependencies": {
     "typescript": "~6.0.3"

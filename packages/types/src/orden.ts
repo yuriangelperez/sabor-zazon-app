@@ -1,9 +1,22 @@
+import type { ImagenProducto } from './producto';
+
+export interface OpcionElegida {
+  grupoId: string;
+  grupoNombre: string;
+  opcionId: string;
+  nombre: string;
+  cantidad: number;
+  precioAdicional: number; // por unidad de la opción
+}
+
 export interface ItemCarrito {
+  key: string; // productoId + opciones elegidas: mismo producto con distintas opciones = ítems distintos
   productoId: string;
   nombre: string;
-  precioUnitario: number;
+  imagen: ImagenProducto;
+  precioUnitario: number; // precio con descuento + adicionales de las opciones
   cantidad: number;
-  opcionesElegidas?: { opcionId: string; nombre: string; precioAdicional: number }[];
+  opcionesElegidas: OpcionElegida[];
   acompañamientos?: string[];
   observaciones?: string;
 }
@@ -16,33 +29,71 @@ export type MetodoPago =
   | 'billetera_virtual_alias'
   | 'efectivo';
 
-export type EstadoOrden =
+export type EstadoPedido =
   | 'por_aceptar'
   | 'en_preparacion'
   | 'listo'
   | 'entregado'
-  | 'cancelado';
+  | 'cancelado'
+  | 'rechazado';
 
-export interface Orden {
+// Estados que siguen en curso (se ven en el tablero de recepción).
+export const ESTADOS_ACTIVOS: EstadoPedido[] = ['por_aceptar', 'en_preparacion', 'listo'];
+
+export interface ItemPedido {
+  id: number;
+  productoId: string | null;
+  nombre: string;
+  cantidad: number;
+  precioUnitario: number;
+  opciones: OpcionElegida[];
+  acompañamientos: string[];
+}
+
+export interface Pedido {
   id: string;
-  numeroOrden: string;
-  compradorId?: string; // opcional: puede ser invitado
-  nombreComprador: string;
-  celularComprador: string;
-  items: ItemCarrito[];
+  numero: number;
+  estado: EstadoPedido;
+  nombreCliente: string;
+  celularCliente: string;
   metodoEntrega: MetodoEntrega;
-  direccionEntrega?: string;
-  costoEnvio: number; // 0 si es retiro en local
-  cuponCodigo?: string;
-  descuentoAplicado?: number;
-  propina?: number;
+  zonaEnvioId: string | null;
+  direccionEntrega: string | null;
+  costoEnvio: number;
+  metodoPago: MetodoPago;
+  subtotal: number;
+  recargo: number;
+  descuento: number;
+  propina: number;
   total: number;
+  observaciones: string | null;
+  creadoEn: string; // ISO
+  aceptadoEn: string | null;
+  listoEn: string | null;
+  entregadoEn: string | null;
+  canceladoEn: string | null;
+  items: ItemPedido[];
+}
+
+// Lo que manda el checkout. Los precios NO viajan: la base de datos los
+// recalcula a partir de los productos para que nadie pueda alterarlos.
+export interface NuevoPedido {
+  nombreCliente: string;
+  celularCliente: string;
+  metodoEntrega: MetodoEntrega;
+  zonaEnvioId?: string;
+  direccionEntrega?: string;
   metodoPago: MetodoPago;
   observaciones?: string;
-  estado: EstadoOrden;
   terminosAceptados: boolean;
-  horaInicio: string; // ISO
-  reembolsoPorcentaje?: 70 | 100; // regla de cancelación
+  items: { productoId: string; cantidad: number; opciones: { grupoId: string; opcionId: string; cantidad: number }[] }[];
+}
+
+export interface PedidoCreado {
+  id: string;
+  numero: number;
+  codigoSeguimiento: string;
+  total: number;
 }
 
 export interface Cupon {

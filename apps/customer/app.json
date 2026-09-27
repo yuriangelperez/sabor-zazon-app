@@ -4,8 +4,14 @@
     "slug": "sabor-y-sazon-customer",
     "scheme": "saborysazon",
     "userInterfaceStyle": "dark",
-    "backgroundColor": "#1F1E1E",
-    "web": { "bundler": "metro", "output": "single" },
-    "plugins": ["expo-router"]
+    "backgroundColor": "#09090b",
+    "web": {
+      "bundler": "metro",
+      "output": "single"
+    },
+    "plugins": [
+      "expo-router",
+      "expo-font"
+    ]
   }
 }

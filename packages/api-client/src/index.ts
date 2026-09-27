@@ -1,4 +1,6 @@
 export * from './supabaseClient';
-
-// A medida que armemos los servicios (menuService, ordersService, etc.)
-// se exportan acá para que las 3 apps los consuman sin duplicar queries.
+export * from './menuService';
+export * from './localService';
+export * from './pedidosService';
+export * from './authService';
+export * from './imagenesService';

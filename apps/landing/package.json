@@ -1,0 +1,9 @@
+{
+  "name": "@sabor/landing",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Landing estática (HTML/CSS/JS) con los productos; los botones llevan a la web de pedidos (apps/customer).",
+  "scripts": {
+    "start": "npx --yes serve -l 3000 ."
+  }
+}
