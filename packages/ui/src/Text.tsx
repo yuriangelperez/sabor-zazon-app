@@ -39,6 +39,8 @@ export function Text({ style, ...props }: TextProps) {
   return <RNText {...props} style={conPoppins(style)} />;
 }
 
+// minWidth 0: en la web el <input> tiene un ancho mínimo propio y con
+// `flex: 1` se sale de su contenedor en vez de achicarse.
 export const TextInput = forwardRef<RNTextInput, TextInputProps>(function TextInput({ style, ...props }, ref) {
-  return <RNTextInput ref={ref} {...props} style={conPoppins(style)} />;
+  return <RNTextInput ref={ref} {...props} style={[{ minWidth: 0 }, conPoppins(style)]} />;
 });

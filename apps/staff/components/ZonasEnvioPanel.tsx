@@ -169,7 +169,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 10,
   },
   campoCambiado: { borderColor: colors.acento },
-  prefijo: { color: colors.textMuted, fontSize: 14 },
+  prefijo: { color: colors.textMuted, fontSize: 14, flexShrink: 0 },
   input: { flex: 1, minHeight: 40, color: colors.textPrimary, fontSize: 15, textAlign: 'right' },
   inputSuelto: {
     minHeight: 42,
