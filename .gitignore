@@ -9,3 +9,6 @@ web-build/
 .env.local
 apps/*/.env
 coverage/
+
+# Claves privadas de Firebase (cuenta de servicio): nunca al repo
+*firebase-adminsdk*.json
