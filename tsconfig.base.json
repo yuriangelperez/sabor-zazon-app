@@ -1,0 +1,24 @@
+{
+  "compilerOptions": {
+    "target": "ESNext",
+    "lib": ["ESNext"],
+    "module": "ESNext",
+    "moduleResolution": "Bundler",
+    "strict": true,
+    "esModuleInterop": true,
+    "skipLibCheck": true,
+    "forceConsistentCasingInFileNames": true,
+    "resolveJsonModule": true,
+    "jsx": "react-jsx",
+    "paths": {
+      "@sabor/ui": ["./packages/ui/src"],
+      "@sabor/ui/*": ["./packages/ui/src/*"],
+      "@sabor/types": ["./packages/types/src"],
+      "@sabor/types/*": ["./packages/types/src/*"],
+      "@sabor/api-client": ["./packages/api-client/src"],
+      "@sabor/api-client/*": ["./packages/api-client/src/*"],
+      "@sabor/utils": ["./packages/utils/src"],
+      "@sabor/utils/*": ["./packages/utils/src/*"]
+    }
+  }
+}

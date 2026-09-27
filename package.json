@@ -1,0 +1,26 @@
+{
+  "name": "sabor-y-sazon",
+  "private": true,
+  "version": "1.0.0",
+  "description": "Monorepo de Sabor y Sazón: landing + pedidos (apps/customer), recepción (apps/staff) y dashboard financiero (apps/owner), sobre Supabase.",
+  "workspaces": [
+    "apps/*",
+    "packages/*"
+  ],
+  "scripts": {
+    "customer": "npm run start --workspace=apps/customer",
+    "customer:web": "npm run web --workspace=apps/customer",
+    "staff": "npm run start --workspace=apps/staff",
+    "staff:web": "npm run web --workspace=apps/staff",
+    "owner": "npm run start --workspace=apps/owner",
+    "owner:web": "npm run web --workspace=apps/owner",
+    "typecheck": "npm run typecheck --workspaces --if-present",
+    "lint": "npm run lint --workspaces --if-present"
+  },
+  "devDependencies": {
+    "typescript": "~6.0.3"
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}

@@ -1,0 +1,11 @@
+{
+  "expo": {
+    "name": "Sabor y Sazón — Panel",
+    "slug": "sabor-y-sazon-owner",
+    "scheme": "saborysazonowner",
+    "userInterfaceStyle": "dark",
+    "backgroundColor": "#1F1E1E",
+    "web": { "bundler": "metro", "output": "single" },
+    "plugins": ["expo-router"]
+  }
+}
