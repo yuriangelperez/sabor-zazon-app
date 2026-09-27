@@ -2,17 +2,47 @@
   "expo": {
     "name": "Sabor y Sazón — Recepción",
     "slug": "sabor-y-sazon-staff",
+    "version": "1.0.0",
+    "orientation": "default",
+    "icon": "./assets/images/icon.png",
     "scheme": "saborysazonstaff",
     "userInterfaceStyle": "dark",
     "backgroundColor": "#09090b",
+    "ios": {
+      "bundleIdentifier": "com.saborysazon.recepcion",
+      "supportsTablet": true
+    },
+    "android": {
+      "package": "com.saborysazon.recepcion",
+      "adaptiveIcon": {
+        "foregroundImage": "./assets/images/adaptive-icon.png",
+        "backgroundColor": "#09090b"
+      }
+    },
     "web": {
       "bundler": "metro",
-      "output": "single"
+      "output": "single",
+      "favicon": "./assets/images/favicon.png"
     },
     "plugins": [
       "expo-router",
       "expo-font",
-      "expo-audio"
+      "expo-audio",
+      [
+        "expo-splash-screen",
+        {
+          "image": "./assets/images/splash-icon.png",
+          "imageWidth": 200,
+          "resizeMode": "contain",
+          "backgroundColor": "#09090b"
+        }
+      ],
+      [
+        "expo-image-picker",
+        {
+          "photosPermission": "Permite elegir fotos para los productos del menú."
+        }
+      ]
     ]
   }
 }

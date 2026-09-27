@@ -87,3 +87,34 @@ Para cambiar el menú inicial: editar `supabase/catalogo-inicial.ts` y correr
   `apps/customer/{components,hooks,services,stores}` y, si es reutilizable
   por `staff`/`owner`, sube a `packages/`.
 # sabor-zazon-app
+
+## Publicar
+
+### Web (Vercel)
+
+Un proyecto de Vercel por app, todos desde este repo:
+
+| Proyecto | Root Directory | Configuración |
+|---|---|---|
+| Landing | `apps/landing` | Framework "Other", sin build |
+| Pedidos | `apps/customer` | la toma de `apps/customer/vercel.json` |
+| Recepción | `apps/staff` | la toma de `apps/staff/vercel.json` |
+
+En pedidos y recepción cargá en **Settings → Environment Variables**
+`EXPO_PUBLIC_SUPABASE_URL` y `EXPO_PUBLIC_SUPABASE_ANON_KEY` (el `.env` no se sube).
+Después poné la URL de pedidos en `apps/landing/config.js` (`URL_PEDIDOS`).
+
+### App instalable (EAS Build)
+
+```bash
+npm install -g eas-cli
+eas login
+cd apps/staff            # o apps/customer
+eas init                 # vincula la app con tu cuenta de expo.dev
+eas env:create --environment preview --name EXPO_PUBLIC_SUPABASE_URL --value "https://xxxx.supabase.co" --visibility plaintext
+eas env:create --environment preview --name EXPO_PUBLIC_SUPABASE_ANON_KEY --value "sb_publishable_..." --visibility plaintext
+eas build -p android --profile preview      # APK con link de descarga
+```
+
+Para la Play Store: repetí `eas env:create` con `--environment production`,
+y después `eas build -p android --profile production` + `eas submit -p android`.
