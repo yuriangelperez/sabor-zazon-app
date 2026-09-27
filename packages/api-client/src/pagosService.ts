@@ -22,6 +22,12 @@ export async function iniciarPagoMercadoPago(id: string, codigo: string): Promis
   return url;
 }
 
+// El cliente cancela un pedido que todavía no pagó. Falla si el pago ya se
+// aprobó (en ese caso el pedido sigue en curso).
+export async function cancelarPedidoSinPagar(id: string, codigo: string): Promise<void> {
+  await llamar<{ estado: string }>({ accion: 'cancelar', id, codigo });
+}
+
 // Pregunta a Mercado Pago si el pedido ya se pagó (al volver de pagar).
 export async function verificarPagoMercadoPago(id: string, codigo: string): Promise<PagoEstado> {
   const { pagoEstado } = await llamar<{ pagoEstado: PagoEstado }>({ accion: 'verificar', id, codigo });

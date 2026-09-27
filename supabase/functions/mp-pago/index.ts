@@ -1,8 +1,10 @@
-// POST { accion: 'crear' | 'verificar', id, codigo }
+// POST { accion: 'crear' | 'verificar' | 'cancelar', id, codigo }
 // - crear: arma el pago en Mercado Pago (Checkout Pro) y devuelve { url }
 //   para mandar al cliente a pagar.
 // - verificar: consulta en Mercado Pago si el pedido ya se pagó y devuelve
 //   { pagoEstado }. Se usa al volver de Mercado Pago y con "Ya pagué".
+// - cancelar: el cliente cancela un pedido que todavía no pagó. Antes se
+//   confirma con Mercado Pago que no se haya pagado y se vence el link.
 // El cliente se identifica con el id y el código de seguimiento del pedido.
 // Deploy: npx supabase functions deploy mp-pago --no-verify-jwt
 
@@ -16,6 +18,8 @@ interface Pedido {
   codigo_seguimiento: string;
   metodo_pago: string;
   pago_estado: string;
+  estado: string;
+  mp_preferencia_id: string | null;
 }
 
 Deno.serve(async (req) => {
@@ -30,7 +34,7 @@ Deno.serve(async (req) => {
 
     const { data: pedido } = await db
       .from('pedidos')
-      .select('id, numero, total, nombre_cliente, codigo_seguimiento, metodo_pago, pago_estado')
+      .select('id, numero, total, nombre_cliente, codigo_seguimiento, metodo_pago, pago_estado, estado, mp_preferencia_id')
       .eq('id', id)
       .eq('codigo_seguimiento', codigo)
       .maybeSingle<Pedido>();
@@ -45,8 +49,37 @@ Deno.serve(async (req) => {
       return respuesta({ pagoEstado: data?.pago_estado ?? pedido.pago_estado });
     }
 
+    if (accion === 'cancelar') {
+      if (pedido.estado === 'cancelado') return respuesta({ estado: 'cancelado' });
+      if (pedido.estado !== 'por_aceptar' || pedido.pago_estado === 'aprobado') {
+        return respuesta({ error: 'Este pedido ya está pagado: para cancelarlo escribinos por WhatsApp.' }, 409);
+      }
+      // Por si pagó y el aviso de Mercado Pago todavía no llegó.
+      await sincronizarPedido(pedido.id);
+      const { data: actual } = await db.from('pedidos').select('pago_estado').eq('id', pedido.id).single();
+      if (actual?.pago_estado === 'aprobado') {
+        return respuesta({ error: 'Tu pago ya se aprobó, así que el pedido sigue en curso. Si querés cancelarlo, escribinos por WhatsApp.' }, 409);
+      }
+      // Vence el link para que no se pueda pagar un pedido cancelado.
+      if (pedido.mp_preferencia_id) {
+        await mp(`/checkout/preferences/${pedido.mp_preferencia_id}`, {
+          method: 'PUT',
+          body: JSON.stringify({ expires: true, expiration_date_to: fechaMP(new Date()) }),
+        }).catch((err) => console.error('No se pudo vencer la preferencia', err));
+      }
+      const { error } = await db
+        .from('pedidos')
+        .update({ estado: 'cancelado' })
+        .eq('id', pedido.id)
+        .eq('estado', 'por_aceptar')
+        .neq('pago_estado', 'aprobado');
+      if (error) throw error;
+      return respuesta({ estado: 'cancelado' });
+    }
+
     if (accion !== 'crear') return respuesta({ error: 'Acción inválida.' }, 400);
     if (pedido.pago_estado === 'aprobado') return respuesta({ error: 'Este pedido ya está pagado.' }, 409);
+    if (pedido.estado !== 'por_aceptar') return respuesta({ error: 'Este pedido fue cancelado.' }, 409);
 
     const appUrl = secreto('APP_URL').replace(/\/$/, '');
     const volver = `${appUrl}/pedido/${pedido.id}?c=${encodeURIComponent(pedido.codigo_seguimiento)}&mp=1`;

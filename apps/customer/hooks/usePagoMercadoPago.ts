@@ -1,7 +1,7 @@
 import { useCallback, useState } from 'react';
 import { Linking, Platform } from 'react-native';
 import type { PagoEstado } from '@sabor/types';
-import { iniciarPagoMercadoPago, mensajeError, verificarPagoMercadoPago } from '@sabor/api-client';
+import { cancelarPedidoSinPagar, iniciarPagoMercadoPago, mensajeError, verificarPagoMercadoPago } from '@sabor/api-client';
 
 // Lleva al cliente a pagar a Mercado Pago. En la web se va en la misma
 // pestaña (y Mercado Pago lo trae de vuelta al seguimiento); en la app se
@@ -17,6 +17,7 @@ export async function abrirPagoMercadoPago(id: string, codigo: string): Promise<
 export function usePagoMercadoPago(id: string | undefined, codigo: string | undefined) {
   const [abriendo, setAbriendo] = useState(false);
   const [verificando, setVerificando] = useState(false);
+  const [cancelando, setCancelando] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   const pagar = useCallback(async () => {
@@ -50,5 +51,20 @@ export function usePagoMercadoPago(id: string | undefined, codigo: string | unde
     [id, codigo]
   );
 
-  return { pagar, verificar, abriendo, verificando, error };
+  const cancelar = useCallback(async (): Promise<boolean> => {
+    if (!id || !codigo) return false;
+    setCancelando(true);
+    setError(null);
+    try {
+      await cancelarPedidoSinPagar(id, codigo);
+      return true;
+    } catch (err) {
+      setError(mensajeError(err, 'No pudimos cancelar el pedido. Probá de nuevo.'));
+      return false;
+    } finally {
+      setCancelando(false);
+    }
+  }, [id, codigo]);
+
+  return { pagar, verificar, cancelar, abriendo, verificando, cancelando, error };
 }

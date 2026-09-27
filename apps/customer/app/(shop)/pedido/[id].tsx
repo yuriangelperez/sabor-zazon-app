@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { ActivityIndicator, Linking, ScrollView, StyleSheet, View } from 'react-native';
+import { ActivityIndicator, Linking, Pressable, ScrollView, StyleSheet, View } from 'react-native';
 import { router, Stack, useLocalSearchParams } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
@@ -35,6 +35,7 @@ export default function SeguimientoPedidoPantalla() {
   const [cargando, setCargando] = useState(true);
   const pago = usePagoMercadoPago(params.id, codigo);
   const yaVerificado = useRef(false);
+  const [confirmarCancelar, setConfirmarCancelar] = useState(false);
 
   const cargar = useCallback(async () => {
     if (!params.id || !codigo) {
@@ -76,6 +77,12 @@ export default function SeguimientoPedidoPantalla() {
 
   const verificarAhora = async () => {
     await verificar();
+    await cargar();
+  };
+
+  const cancelarPedido = async () => {
+    await pago.cancelar();
+    setConfirmarCancelar(false);
     await cargar();
   };
 
@@ -144,6 +151,25 @@ export default function SeguimientoPedidoPantalla() {
               />
               {pago.error || params.e ? <Text style={styles.error}>{pago.error ?? params.e}</Text> : null}
               <Text style={styles.textoSecundario}>Tarjeta de débito, crédito o dinero en cuenta de Mercado Pago.</Text>
+              <View style={styles.separador} />
+              {confirmarCancelar ? (
+                <View style={styles.confirmar}>
+                  <Text style={styles.confirmarTexto}>¿Cancelar el pedido {numeroPedido(pedido.numero)}? No se te va a cobrar nada.</Text>
+                  <View style={styles.confirmarBotones}>
+                    <Button label="No, volver" variante="contorno" onPress={() => setConfirmarCancelar(false)} style={{ flex: 1 }} />
+                    <Button
+                      label={pago.cancelando ? 'Cancelando…' : 'Sí, cancelar'}
+                      onPress={() => void cancelarPedido()}
+                      disabled={pago.cancelando}
+                      style={[{ flex: 1 }, styles.botonPeligro]}
+                    />
+                  </View>
+                </View>
+              ) : (
+                <Pressable onPress={() => setConfirmarCancelar(true)} accessibilityRole="button" style={styles.cancelar}>
+                  <Text style={styles.cancelarTexto}>Cancelar pedido</Text>
+                </Pressable>
+              )}
             </View>
           ) : null}
 
@@ -282,4 +308,10 @@ const styles = StyleSheet.create({
   pagado: { flexDirection: 'row', alignItems: 'center', gap: 6 },
   pagadoTexto: { color: colors.success, fontSize: 14, fontWeight: '600' },
   error: { color: colors.danger, fontSize: 14, textAlign: 'center' },
+  cancelar: { alignSelf: 'center', paddingVertical: spacing.xs, paddingHorizontal: spacing.md },
+  cancelarTexto: { color: colors.textMuted, fontSize: 14, fontWeight: '600', textDecorationLine: 'underline' },
+  confirmar: { gap: spacing.sm },
+  confirmarTexto: { color: colors.textPrimary, fontSize: 14, textAlign: 'center' },
+  confirmarBotones: { flexDirection: 'row', gap: spacing.sm },
+  botonPeligro: { backgroundColor: colors.danger },
 });
