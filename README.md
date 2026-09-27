@@ -118,3 +118,24 @@ eas build -p android --profile preview      # APK con link de descarga
 
 Para la Play Store: repetí `eas env:create` con `--environment production`,
 y después `eas build -p android --profile production` + `eas submit -p android`.
+
+### Notificaciones de pedidos (APK de recepción)
+
+Cuando entra un pedido, Supabase manda un push a cada celular de recepción con
+sesión iniciada, aunque la app esté cerrada. Una sola vez:
+
+1. Supabase → SQL Editor → correr `supabase/migrations/0002_notificaciones.sql`.
+2. [Firebase](https://console.firebase.google.com) → crear proyecto → agregar app
+   **Android** con el paquete `com.saborysazon.recepcion` → descargar
+   `google-services.json` y guardarlo en `apps/staff/google-services.json`
+   (se commitea: EAS solo sube los archivos del repo).
+3. Firebase → Configuración del proyecto → Cuentas de servicio →
+   **Generar nueva clave privada** (baja un `.json`; ese NO se commitea).
+4. `cd apps/staff && eas credentials` → Android → production/preview →
+   **Google Service Account → Manage your Google Service Account Key for Push
+   Notifications (FCM V1)** → subir el `.json` del paso 3.
+5. `eas build -p android --profile preview` e instalar el APK nuevo.
+
+Al entrar, la app pide permiso de notificaciones. El estado se ve en Ajustes →
+"Avisos de pedidos". En Expo Go y en la web no hay push (con la app abierta
+sigue sonando igual).

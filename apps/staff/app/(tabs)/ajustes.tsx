@@ -1,15 +1,17 @@
 import { useCallback, useEffect, useState, type ReactNode } from 'react';
-import { ScrollView, StyleSheet, Switch, View } from 'react-native';
+import { Linking, Platform, ScrollView, StyleSheet, Switch, View } from 'react-native';
 import type { ConfiguracionLocal } from '@sabor/types';
 import { getConfiguracion, mensajeError, pausarRecepcion, suscribirConfiguracion } from '@sabor/api-client';
 import { Button, colors, radii, spacing, Text, TextInput } from '@sabor/ui';
 import { estaAbierto } from '@sabor/utils';
 
+import { activarAvisos, useAvisosStore } from '../../services/notificaciones';
 import { useSesionStore } from '../../stores/useSesionStore';
 
 // RF-13 (cerrar tienda) y cuenta. Los ingredientes agotados están en Menú.
 export default function Ajustes() {
   const { perfil, salir } = useSesionStore();
+  const avisos = useAvisosStore();
   const [config, setConfig] = useState<ConfiguracionLocal | null>(null);
   const [mensajePausa, setMensajePausa] = useState('');
   const [error, setError] = useState<string | null>(null);
@@ -79,6 +81,26 @@ export default function Ajustes() {
           <Text style={styles.ayuda}>Cargando…</Text>
         )}
       </Seccion>
+
+      {Platform.OS !== 'web' ? (
+        <Seccion titulo="Avisos de pedidos">
+          <View style={[styles.estado, avisos.estado === 'activos' ? styles.estadoActivo : styles.estadoPausado]}>
+            <Text style={styles.estadoTexto}>
+              {avisos.estado === 'activos'
+                ? 'Activados: este celular avisa cada pedido nuevo, aunque la app esté cerrada.'
+                : avisos.estado === 'desconocido'
+                  ? 'Activando…'
+                  : 'Este celular no recibe avisos con la app cerrada.'}
+            </Text>
+          </View>
+          {avisos.detalle ? <Text style={styles.ayuda}>{avisos.detalle}</Text> : null}
+          {avisos.estado === 'sin_permiso' ? (
+            <Button label="Abrir ajustes del celular" variante="contorno" onPress={() => void Linking.openSettings()} />
+          ) : avisos.estado === 'error' ? (
+            <Button label="Reintentar" variante="contorno" onPress={() => void activarAvisos()} />
+          ) : null}
+        </Seccion>
+      ) : null}
 
       <Seccion titulo="Cuenta">
         <Text style={styles.cuenta}>{perfil?.nombre ?? perfil?.email}</Text>

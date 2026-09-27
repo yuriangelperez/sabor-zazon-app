@@ -5,7 +5,7 @@ import { useAudioPlayer } from 'expo-audio';
 import type { EstadoPedido, Pedido } from '@sabor/types';
 import { cambiarEstadoPedido, getPedidosActivos, mensajeError, suscribirPedidos } from '@sabor/api-client';
 
-const sonidoNuevoPedido = require('../assets/sonidos/nuevo-pedido.mp3');
+const sonidoNuevoPedido = require('../assets/sonidos/nuevo_pedido.mp3');
 
 interface PedidosEnVivoStore {
   pedidos: Pedido[];

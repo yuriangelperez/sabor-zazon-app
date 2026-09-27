@@ -10,6 +10,8 @@ import {
   type PerfilStaff,
 } from '@sabor/api-client';
 
+import { desactivarAvisos } from '../services/notificaciones';
+
 interface SesionStore {
   perfil: PerfilStaff | null;
   iniciando: boolean; // leyendo la sesión guardada al abrir la app
@@ -62,6 +64,7 @@ export const useSesionStore = create<SesionStore>()((set) => ({
   },
 
   salir: async () => {
+    await desactivarAvisos();
     await cerrarSesion();
     set({ perfil: null });
   },

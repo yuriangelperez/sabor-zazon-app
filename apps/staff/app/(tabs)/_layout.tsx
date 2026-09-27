@@ -1,9 +1,12 @@
+import { useEffect } from 'react';
 import { View, type ColorValue } from 'react-native';
-import { Tabs } from 'expo-router';
+import { router, Tabs } from 'expo-router';
+import * as Notifications from 'expo-notifications';
 import { Ionicons } from '@expo/vector-icons';
 import { colors, EncabezadoBandera, fonts } from '@sabor/ui';
 
 import { AvisoNuevoPedido } from '../../components/AvisoNuevoPedido';
+import { activarAvisos } from '../../services/notificaciones';
 import { usePedidosEnVivo, usePedidosEnVivoStore } from '../../stores/usePedidosEnVivo';
 
 type Icono = keyof typeof Ionicons.glyphMap;
@@ -14,6 +17,16 @@ function iconoTab(nombre: Icono) {
 
 export default function TabsLayout() {
   usePedidosEnVivo();
+
+  // Push de pedidos nuevos: registra este celular y, al tocar un aviso,
+  // abre la pestaña de pedidos.
+  const respuesta = Notifications.useLastNotificationResponse();
+  useEffect(() => {
+    void activarAvisos();
+  }, []);
+  useEffect(() => {
+    if (respuesta?.notification.request.content.data?.pedidoId) router.navigate('/');
+  }, [respuesta]);
   const porAceptar = usePedidosEnVivoStore((s) => s.pedidos.filter((p) => p.estado === 'por_aceptar').length);
 
   return (
