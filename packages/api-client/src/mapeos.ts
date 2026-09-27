@@ -85,6 +85,7 @@ export function productoARow(p: Producto): Omit<ProductoRow, 'id'> & { id?: stri
 
 export interface ConfiguracionRow {
   pausado: boolean;
+  pausado_hasta: string | null;
   mensaje_pausa: string | null;
   horario_apertura: string; // "10:00:00"
   horario_cierre: string;
@@ -98,6 +99,7 @@ export interface ConfiguracionRow {
 export function configuracionDesdeRow(r: ConfiguracionRow): ConfiguracionLocal {
   return {
     pausado: r.pausado,
+    pausadoHasta: r.pausado_hasta,
     mensajePausa: r.mensaje_pausa,
     horarioApertura: r.horario_apertura.slice(0, 5),
     horarioCierre: r.horario_cierre.slice(0, 5),

@@ -1,5 +1,6 @@
 import { StyleSheet, View } from 'react-native';
 import { colors, spacing, Text } from '@sabor/ui';
+import { describirMomento, pausaVigente } from '@sabor/utils';
 
 import { useLocal } from '../hooks/useLocal';
 
@@ -9,8 +10,9 @@ export function EstadoLocalBanner() {
   const { config, abierto } = useLocal();
   if (!config || abierto) return null;
 
-  const texto = config.pausado
-    ? (config.mensajePausa ?? 'En este momento no estamos tomando pedidos. Volvé a intentar en un rato.')
+  const vuelve = config.pausadoHasta ? ` Volvemos a tomar pedidos ${describirMomento(config.pausadoHasta)}.` : '';
+  const texto = pausaVigente(config)
+    ? `${config.mensajePausa ?? 'En este momento no estamos tomando pedidos.'}${vuelve}`
     : `El local está cerrado por el momento. Horario de atención: ${config.horarioApertura} a ${config.horarioCierre} hs.`;
 
   return (

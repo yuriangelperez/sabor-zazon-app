@@ -1,10 +1,11 @@
 import { useCallback, useEffect, useState } from 'react';
 import type { ConfiguracionLocal } from '@sabor/types';
 import { getConfiguracion, suscribirConfiguracion } from '@sabor/api-client';
-import { estaAbierto } from '@sabor/utils';
+import { localAbierto } from '@sabor/utils';
 
 // Estado del local (RF-07 / RF-13): abierto según horario y pausa manual.
-// Se actualiza al instante si recepción "cierra la tienda".
+// Se actualiza al instante si recepción "cierra la tienda", y el cierre
+// manual vence solo en la próxima apertura.
 export function useLocal() {
   const [config, setConfig] = useState<ConfiguracionLocal | null>(null);
   const [, setTic] = useState(0);
@@ -26,10 +27,7 @@ export function useLocal() {
     };
   }, [cargar]);
 
-  const abierto =
-    config != null &&
-    !config.pausado &&
-    estaAbierto({ apertura: config.horarioApertura, cierre: config.horarioCierre });
+  const abierto = config != null && localAbierto(config);
 
   return { config, abierto, cargando: config == null };
 }

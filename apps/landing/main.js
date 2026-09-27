@@ -1,5 +1,5 @@
 (function () {
-    const { URL_PEDIDOS, HORARIO } = window.SABOR_CONFIG;
+    const { URL_PEDIDOS, HORARIO, SUPABASE_URL, SUPABASE_KEY } = window.SABOR_CONFIG;
     const categorias = window.SABOR_CATALOGO;
 
     const formatoPrecio = new Intl.NumberFormat('es-AR', {
@@ -76,14 +76,49 @@
         return h * 60 + m;
     }
 
-    function mostrarEstadoLocal() {
+    function abiertoPorHorario(horario) {
         const ahora = new Date();
         const actual = ahora.getHours() * 60 + ahora.getMinutes();
-        const apertura = aMinutos(HORARIO.apertura);
-        const cierre = aMinutos(HORARIO.cierre);
-        const abierto =
-            apertura <= cierre ? actual >= apertura && actual < cierre : actual >= apertura || actual < cierre;
+        const apertura = aMinutos(horario.apertura);
+        const cierre = aMinutos(horario.cierre);
+        return apertura <= cierre ? actual >= apertura && actual < cierre : actual >= apertura || actual < cierre;
+    }
+
+    function pintarEstado(abierto, horario, mensaje) {
+        document.getElementById('horario-horas').textContent = `${horario.apertura} a ${horario.cierre}`;
+        document.getElementById('estado-local-texto').textContent =
+            mensaje || `El local se encuentra cerrado por el momento. Horario de atención: ${horario.apertura} a ${horario.cierre} hs.`;
         document.getElementById('estado-local').classList.toggle('hidden', abierto);
+    }
+
+    // Horario y estado reales (los que configura recepción). Si falla la
+    // consulta, se usa el horario de config.js.
+    async function mostrarEstadoLocal() {
+        pintarEstado(abiertoPorHorario(HORARIO), HORARIO);
+        if (!SUPABASE_URL || !SUPABASE_KEY) return;
+        const cabeceras = { apikey: SUPABASE_KEY, 'Accept-Profile': 'saborsazon', 'Content-Profile': 'saborsazon' };
+        try {
+            const [config, abierto] = await Promise.all([
+                fetch(`${SUPABASE_URL}/rest/v1/configuracion?id=eq.1&select=horario_apertura,horario_cierre,pausado,pausado_hasta,mensaje_pausa`, {
+                    headers: cabeceras,
+                }).then((r) => (r.ok ? r.json() : Promise.reject(r.status))),
+                fetch(`${SUPABASE_URL}/rest/v1/rpc/local_abierto`, {
+                    method: 'POST',
+                    headers: { ...cabeceras, 'Content-Type': 'application/json' },
+                    body: '{}',
+                }).then((r) => (r.ok ? r.json() : Promise.reject(r.status))),
+            ]);
+            const c = config[0];
+            if (!c) return;
+            const horario = { apertura: c.horario_apertura.slice(0, 5), cierre: c.horario_cierre.slice(0, 5) };
+            const cerradoAMano = c.pausado && (!c.pausado_hasta || new Date() < new Date(c.pausado_hasta));
+            const mensaje = cerradoAMano
+                ? `${c.mensaje_pausa || 'Hoy no estamos tomando pedidos.'} Volvemos a abrir a las ${horario.apertura} hs.`
+                : null;
+            pintarEstado(abierto === true, horario, mensaje);
+        } catch (e) {
+            // Sin conexión con Supabase: queda el horario de respaldo.
+        }
     }
 
     function menuHamburguesa() {
@@ -106,6 +141,7 @@
     renderCatalogo();
     conectarLinksPedidos();
     mostrarEstadoLocal();
+    setInterval(mostrarEstadoLocal, 60000);
     menuHamburguesa();
     document.getElementById('anio').textContent = new Date().getFullYear();
 })();
