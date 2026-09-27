@@ -14,23 +14,81 @@ export const INGREDIENTES_BASE = [
 ] as const;
 
 // Rellenos para elegir en cada pieza del combo. Los especiales tienen costo
-// adicional (en arepas el doble que en empanadas, como en la web anterior).
-export function opcionesDeRelleno(prefijo: string, extraEspecial: number): OpcionGrupo[] {
-  return [
-    { id: `${prefijo}-carne`, nombre: 'Carne mechada', precioAdicional: 0, ingredientes: ['carne-mechada'] },
-    { id: `${prefijo}-pollo`, nombre: 'Pollo', precioAdicional: 0, ingredientes: ['pollo'] },
-    { id: `${prefijo}-queso`, nombre: 'Queso', precioAdicional: 0, ingredientes: ['queso'] },
-    { id: `${prefijo}-porotos`, nombre: 'Porotos', precioAdicional: 0, ingredientes: ['porotos'] },
-    { id: `${prefijo}-domino`, nombre: 'Porotos y queso', precioAdicional: 0, ingredientes: ['porotos', 'queso'] },
-    { id: `${prefijo}-catira`, nombre: 'Catira', precioAdicional: extraEspecial, ingredientes: ['pollo', 'queso'] },
-    { id: `${prefijo}-pelua`, nombre: 'Pelúa', precioAdicional: extraEspecial, ingredientes: ['carne-mechada', 'queso'] },
-    {
-      id: `${prefijo}-pabellon`,
-      nombre: 'Pabellón',
-      precioAdicional: extraEspecial * 2,
-      ingredientes: ['carne-mechada', 'porotos', 'queso'],
-    },
-  ];
+// adicional, que se edita desde recepción (Menú → Rellenos).
+export const RELLENOS_COMBO = [
+  { clave: 'carne', nombre: 'Carne mechada', ingredientes: ['carne-mechada'] },
+  { clave: 'pollo', nombre: 'Pollo', ingredientes: ['pollo'] },
+  { clave: 'queso', nombre: 'Queso', ingredientes: ['queso'] },
+  { clave: 'porotos', nombre: 'Porotos', ingredientes: ['porotos'] },
+  { clave: 'domino', nombre: 'Porotos y queso', ingredientes: ['porotos', 'queso'] },
+  { clave: 'catira', nombre: 'Catira', ingredientes: ['pollo', 'queso'] },
+  { clave: 'pelua', nombre: 'Pelúa', ingredientes: ['carne-mechada', 'queso'] },
+  { clave: 'pabellon', nombre: 'Pabellón', ingredientes: ['carne-mechada', 'porotos', 'queso'] },
+] as const;
+
+export type PiezaCombo = 'arepa' | 'empanada';
+
+// Precio adicional de cada relleno (clave de RELLENOS_COMBO) por tipo de pieza.
+export type PreciosRelleno = Record<PiezaCombo, Record<string, number>>;
+
+// En arepas el extra es el doble que en empanadas, como en la web anterior.
+export const PRECIOS_RELLENO_INICIALES: PreciosRelleno = {
+  arepa: { catira: 400, pelua: 400, pabellon: 800 },
+  empanada: { catira: 200, pelua: 200, pabellon: 400 },
+};
+
+export function opcionesDeRelleno(pieza: PiezaCombo, precios: PreciosRelleno = PRECIOS_RELLENO_INICIALES): OpcionGrupo[] {
+  return RELLENOS_COMBO.map((r) => ({
+    id: `${pieza}-${r.clave}`,
+    nombre: r.nombre,
+    precioAdicional: precios[pieza][r.clave] ?? 0,
+    ingredientes: [...r.ingredientes],
+  }));
+}
+
+// Grupo "Relleno" de una pieza de combo (ej. id "arepa-2-relleno").
+function esGrupoRelleno(g: GrupoOpciones): g is GrupoOpciones & { categoria: PiezaCombo } {
+  return (g.categoria === 'arepa' || g.categoria === 'empanada') && g.id.endsWith('-relleno');
+}
+
+// Precios de relleno que usan hoy los combos (el primero que aparezca de
+// cada uno), completados con los iniciales.
+export function preciosDeRellenos(productos: { gruposOpciones?: GrupoOpciones[] }[]): PreciosRelleno {
+  const precios: PreciosRelleno = {
+    arepa: Object.fromEntries(RELLENOS_COMBO.map((r) => [r.clave, PRECIOS_RELLENO_INICIALES.arepa[r.clave] ?? 0])),
+    empanada: Object.fromEntries(RELLENOS_COMBO.map((r) => [r.clave, PRECIOS_RELLENO_INICIALES.empanada[r.clave] ?? 0])),
+  };
+  const vistos = new Set<string>();
+  for (const p of productos) {
+    for (const g of (p.gruposOpciones ?? []).filter(esGrupoRelleno)) {
+      for (const o of g.opciones) {
+        const clave = o.id.slice(g.categoria.length + 1);
+        if (!(clave in precios[g.categoria]) || vistos.has(o.id)) continue;
+        vistos.add(o.id);
+        precios[g.categoria][clave] = o.precioAdicional;
+      }
+    }
+  }
+  return precios;
+}
+
+// Devuelve los grupos con los precios de relleno actualizados, o null si
+// no cambia nada (así solo se guardan los combos afectados).
+export function aplicarPreciosRelleno(grupos: GrupoOpciones[] | undefined, precios: PreciosRelleno): GrupoOpciones[] | null {
+  let cambio = false;
+  const nuevos = (grupos ?? []).map((g) => {
+    if (!esGrupoRelleno(g)) return g;
+    return {
+      ...g,
+      opciones: g.opciones.map((o) => {
+        const precio = precios[g.categoria][o.id.slice(g.categoria.length + 1)];
+        if (precio === undefined || precio === o.precioAdicional) return o;
+        cambio = true;
+        return { ...o, precioAdicional: precio };
+      }),
+    };
+  });
+  return cambio ? nuevos : null;
 }
 
 export const GRUPO_COCCION: GrupoOpciones = {
@@ -48,7 +106,7 @@ export const GRUPO_COCCION: GrupoOpciones = {
 
 // Cada arepa del combo se arma por separado: relleno (obligatorio, sin
 // preselección) y cocción (Asada por defecto).
-export function arepasDelCombo(cantidad: number): GrupoOpciones[] {
+export function arepasDelCombo(cantidad: number, precios?: PreciosRelleno): GrupoOpciones[] {
   return Array.from({ length: cantidad }, (_, i) => {
     const seccion = `Arepa ${i + 1}`;
     const grupos: GrupoOpciones[] = [
@@ -61,7 +119,7 @@ export function arepasDelCombo(cantidad: number): GrupoOpciones[] {
         minimo: 1,
         maximo: 1,
         elegirManual: true,
-        opciones: opcionesDeRelleno('arepa', 400),
+        opciones: opcionesDeRelleno('arepa', precios),
       },
       { ...GRUPO_COCCION, id: `arepa-${i + 1}-coccion`, seccion },
     ];
@@ -69,7 +127,7 @@ export function arepasDelCombo(cantidad: number): GrupoOpciones[] {
   }).flat();
 }
 
-export function empanadasDelCombo(cantidad: number): GrupoOpciones[] {
+export function empanadasDelCombo(cantidad: number, precios?: PreciosRelleno): GrupoOpciones[] {
   return Array.from({ length: cantidad }, (_, i) => ({
     id: `empanada-${i + 1}-relleno`,
     nombre: 'Relleno',
@@ -79,7 +137,7 @@ export function empanadasDelCombo(cantidad: number): GrupoOpciones[] {
     minimo: 1,
     maximo: 1,
     elegirManual: true,
-    opciones: opcionesDeRelleno('empanada', 200),
+    opciones: opcionesDeRelleno('empanada', precios),
   }));
 }
 
@@ -95,9 +153,10 @@ export interface PiezasCombo {
 export function gruposParaProducto(
   categoria: CategoriaBase,
   esCombo: boolean,
-  piezas: PiezasCombo
+  piezas: PiezasCombo,
+  precios?: PreciosRelleno
 ): GrupoOpciones[] {
-  if (esCombo) return [...arepasDelCombo(piezas.arepas), ...empanadasDelCombo(piezas.empanadas)];
+  if (esCombo) return [...arepasDelCombo(piezas.arepas, precios), ...empanadasDelCombo(piezas.empanadas, precios)];
   if (categoria === 'arepa') return [GRUPO_COCCION];
   return [];
 }

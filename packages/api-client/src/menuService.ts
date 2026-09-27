@@ -1,6 +1,6 @@
-import type { Ingrediente, Producto } from '@sabor/types';
+import type { GrupoOpciones, Ingrediente, Producto } from '@sabor/types';
 
-import { productoARow, productoDesdeRow, type ProductoRow } from './mapeos';
+import { gruposARow, productoARow, productoDesdeRow, type ProductoRow } from './mapeos';
 import { asegurarConfiguracion, ESQUEMA, supabase, supabaseConfigurado } from './supabaseClient';
 
 const COLUMNAS_PRODUCTO =
@@ -37,6 +37,14 @@ export async function guardarProducto(producto: Producto): Promise<Producto> {
     .single();
   if (error) throw error;
   return productoDesdeRow(data as ProductoRow);
+}
+
+// Solo las opciones (ej. nuevos precios de relleno), sin pisar otros campos
+// que alguien esté editando al mismo tiempo.
+export async function guardarOpcionesProducto(id: string, grupos: GrupoOpciones[]): Promise<void> {
+  asegurarConfiguracion();
+  const { error } = await supabase.from('productos').update({ grupos_opciones: gruposARow(grupos) }).eq('id', id);
+  if (error) throw error;
 }
 
 export async function eliminarProducto(id: string): Promise<void> {

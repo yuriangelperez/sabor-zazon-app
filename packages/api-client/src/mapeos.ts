@@ -54,6 +54,14 @@ export function productoDesdeRow(r: ProductoRow): Producto {
   };
 }
 
+// `agotado` se calcula en la app a partir de los ingredientes: no se guarda.
+export function gruposARow(grupos: Producto['gruposOpciones']): ProductoRow['grupos_opciones'] {
+  return (grupos ?? []).map((g) => ({
+    ...g,
+    opciones: g.opciones.map(({ agotado: _agotado, ...o }) => o),
+  }));
+}
+
 export function productoARow(p: Producto): Omit<ProductoRow, 'id'> & { id?: string } {
   return {
     id: p.id || undefined,
@@ -66,11 +74,7 @@ export function productoARow(p: Producto): Omit<ProductoRow, 'id'> & { id?: stri
     categorias_momento: p.categoriasMomento,
     rellenos: p.rellenos ?? [],
     es_combo: p.esCombo,
-    // `agotado` se calcula en la app a partir de los ingredientes: no se guarda.
-    grupos_opciones: (p.gruposOpciones ?? []).map((g) => ({
-      ...g,
-      opciones: g.opciones.map(({ agotado: _agotado, ...o }) => o),
-    })),
+    grupos_opciones: gruposARow(p.gruposOpciones),
     acompanamientos: p.acompañamientos ?? [],
     ingredientes: p.ingredientes ?? [],
     activo: p.activo,

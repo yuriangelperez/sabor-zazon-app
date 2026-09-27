@@ -1,35 +1,22 @@
 import { useCallback, useEffect, useState, type ReactNode } from 'react';
 import { ScrollView, StyleSheet, Switch, View } from 'react-native';
-import type { ConfiguracionLocal, Ingrediente } from '@sabor/types';
-import {
-  crearIngrediente,
-  getConfiguracion,
-  getIngredientes,
-  marcarIngredienteAgotado,
-  mensajeError,
-  pausarRecepcion,
-  suscribirConfiguracion,
-  suscribirMenu,
-} from '@sabor/api-client';
+import type { ConfiguracionLocal } from '@sabor/types';
+import { getConfiguracion, mensajeError, pausarRecepcion, suscribirConfiguracion } from '@sabor/api-client';
 import { Button, colors, radii, spacing, Text, TextInput } from '@sabor/ui';
 import { estaAbierto } from '@sabor/utils';
 
 import { useSesionStore } from '../../stores/useSesionStore';
 
-// RF-13 (cerrar tienda) y RF-12 (ingredientes agotados).
+// RF-13 (cerrar tienda) y cuenta. Los ingredientes agotados están en Menú.
 export default function Ajustes() {
   const { perfil, salir } = useSesionStore();
   const [config, setConfig] = useState<ConfiguracionLocal | null>(null);
-  const [ingredientes, setIngredientes] = useState<Ingrediente[]>([]);
   const [mensajePausa, setMensajePausa] = useState('');
-  const [nuevoIngrediente, setNuevoIngrediente] = useState('');
   const [error, setError] = useState<string | null>(null);
 
   const cargar = useCallback(async () => {
     try {
-      const [c, i] = await Promise.all([getConfiguracion(), getIngredientes()]);
-      setConfig(c);
-      setIngredientes(i);
+      setConfig(await getConfiguracion());
     } catch (err) {
       setError(mensajeError(err));
     }
@@ -37,12 +24,7 @@ export default function Ajustes() {
 
   useEffect(() => {
     void cargar();
-    const a = suscribirConfiguracion(() => void cargar());
-    const b = suscribirMenu(() => void cargar());
-    return () => {
-      a();
-      b();
-    };
+    return suscribirConfiguracion(() => void cargar());
   }, [cargar]);
 
   const ejecutar = async (accion: () => Promise<unknown>) => {
@@ -98,43 +80,6 @@ export default function Ajustes() {
         )}
       </Seccion>
 
-      <Seccion titulo="Ingredientes agotados">
-        <Text style={styles.ayuda}>
-          Al marcar uno como agotado se ocultan los productos que lo usan y se deshabilita esa opción en los combos.
-        </Text>
-        {ingredientes.map((i) => (
-          <Fila key={i.id} texto={i.nombre} tachado={i.agotado}>
-            <Text style={[styles.etiquetaEstado, i.agotado && { color: colors.danger }]}>{i.agotado ? 'Agotado' : 'Hay'}</Text>
-            <Switch
-              value={i.agotado}
-              onValueChange={(agotado) => void ejecutar(() => marcarIngredienteAgotado(i.id, agotado))}
-              trackColor={{ true: colors.danger, false: colors.surfaceAlt }}
-              thumbColor={colors.textPrimary}
-            />
-          </Fila>
-        ))}
-        <View style={styles.agregar}>
-          <TextInput
-            value={nuevoIngrediente}
-            onChangeText={setNuevoIngrediente}
-            placeholder="Nuevo ingrediente"
-            placeholderTextColor={colors.textMuted}
-            style={[styles.input, { flex: 1 }]}
-          />
-          <Button
-            label="Agregar"
-            variante="contorno"
-            disabled={!nuevoIngrediente.trim()}
-            onPress={() =>
-              void ejecutar(async () => {
-                await crearIngrediente(nuevoIngrediente);
-                setNuevoIngrediente('');
-              })
-            }
-          />
-        </View>
-      </Seccion>
-
       <Seccion titulo="Cuenta">
         <Text style={styles.cuenta}>{perfil?.nombre ?? perfil?.email}</Text>
         <Text style={styles.ayuda}>
@@ -155,10 +100,10 @@ function Seccion({ titulo, children }: { titulo: string; children: ReactNode }) 
   );
 }
 
-function Fila({ texto, tachado, children }: { texto: string; tachado?: boolean; children: ReactNode }) {
+function Fila({ texto, children }: { texto: string; children: ReactNode }) {
   return (
     <View style={styles.fila}>
-      <Text style={[styles.filaTexto, tachado && styles.tachado]}>{texto}</Text>
+      <Text style={styles.filaTexto}>{texto}</Text>
       {children}
     </View>
   );
@@ -190,8 +135,6 @@ const styles = StyleSheet.create({
     borderTopColor: colors.border,
   },
   filaTexto: { flex: 1, color: colors.textPrimary, fontSize: 15 },
-  tachado: { color: colors.textMuted, textDecorationLine: 'line-through' },
-  etiquetaEstado: { color: colors.textMuted, fontSize: 12, fontWeight: '600' },
   input: {
     minHeight: 44,
     paddingHorizontal: 12,
@@ -202,7 +145,6 @@ const styles = StyleSheet.create({
     color: colors.textPrimary,
     fontSize: 14,
   },
-  agregar: { flexDirection: 'row', gap: spacing.sm, alignItems: 'center' },
   ayuda: { color: colors.textMuted, fontSize: 12 },
   cuenta: { color: colors.textPrimary, fontSize: 16, fontWeight: '600' },
 });

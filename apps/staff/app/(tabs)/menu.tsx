@@ -16,7 +16,11 @@ import {
   type EstadoDisponibilidad,
 } from '@sabor/utils';
 
+import { IngredientesPanel } from '../../components/IngredientesPanel';
+import { PreciosRellenosPanel } from '../../components/PreciosRellenosPanel';
 import { useMenuAdmin } from '../../hooks/useMenuAdmin';
+
+type Vista = 'productos' | 'ingredientes' | 'rellenos';
 
 const DISPONIBILIDAD: { id: EstadoDisponibilidad; label: string; detalle: string }[] = [
   { id: 'disponible', label: 'Disponible', detalle: 'Se ve en el menú' },
@@ -24,9 +28,11 @@ const DISPONIBILIDAD: { id: EstadoDisponibilidad; label: string; detalle: string
   { id: 'desactivado', label: 'Desactivado', detalle: 'Oculto hasta reactivarlo' },
 ];
 
-// RF-12: administración del menú (buscar, filtrar, activar/desactivar, editar).
+// RF-12: administración del menú: productos (buscar, filtrar,
+// activar/desactivar, editar), ingredientes agotados y precios de relleno.
 export default function MenuAdmin() {
-  const { productos, cargando, error } = useMenuAdmin();
+  const { productos, ingredientes, cargando, error, recargar } = useMenuAdmin();
+  const [vista, setVista] = useState<Vista>('productos');
   const [texto, setTexto] = useState('');
   const [categoria, setCategoria] = useState<CategoriaBase | null>(null);
   const [estado, setEstado] = useState<EstadoDisponibilidad | null>(null);
@@ -51,8 +57,51 @@ export default function MenuAdmin() {
 
   if (cargando) return <ActivityIndicator color={colors.acento} style={{ marginTop: spacing.xl }} />;
 
+  const agotados = ingredientes.filter((i) => i.agotado).length;
+  const pestanas = (
+    <View style={styles.pestanas}>
+      {(
+        [
+          { id: 'productos', label: 'Productos' },
+          { id: 'ingredientes', label: agotados > 0 ? `Ingredientes (${agotados} agotado${agotados === 1 ? '' : 's'})` : 'Ingredientes' },
+          { id: 'rellenos', label: 'Rellenos' },
+        ] as const
+      ).map((p) => (
+        <Pressable
+          key={p.id}
+          onPress={() => setVista(p.id)}
+          accessibilityRole="tab"
+          accessibilityState={{ selected: vista === p.id }}
+          style={[styles.pestana, vista === p.id && styles.pestanaActiva]}
+        >
+          <Text
+            style={[styles.pestanaTexto, vista === p.id && styles.pestanaTextoActivo, p.id === 'ingredientes' && agotados > 0 && vista !== p.id && { color: colors.danger }]}
+            numberOfLines={1}
+          >
+            {p.label}
+          </Text>
+        </Pressable>
+      ))}
+    </View>
+  );
+
+  if (vista !== 'productos') {
+    return (
+      <View style={styles.pantalla}>
+        {pestanas}
+        {error ? <Text style={styles.error}>{error}</Text> : null}
+        {vista === 'ingredientes' ? (
+          <IngredientesPanel ingredientes={ingredientes} productos={productos} onCambio={recargar} />
+        ) : (
+          <PreciosRellenosPanel productos={productos} onCambio={recargar} />
+        )}
+      </View>
+    );
+  }
+
   return (
     <View style={styles.pantalla}>
+      {pestanas}
       <View style={styles.barra}>
         <View style={styles.buscadorFila}>
           <View style={styles.buscador}>
@@ -148,6 +197,21 @@ function Etiqueta({ texto, color }: { texto: string; color: string }) {
 
 const styles = StyleSheet.create({
   pantalla: { flex: 1, backgroundColor: colors.background },
+  pestanas: {
+    flexDirection: 'row',
+    gap: spacing.xs,
+    padding: spacing.xs,
+    marginHorizontal: spacing.md,
+    marginTop: spacing.sm,
+    backgroundColor: colors.surface,
+    borderRadius: radii.md,
+    borderWidth: 1,
+    borderColor: colors.border,
+  },
+  pestana: { flex: 1, alignItems: 'center', paddingVertical: 8, paddingHorizontal: 4, borderRadius: radii.sm },
+  pestanaActiva: { backgroundColor: colors.acento },
+  pestanaTexto: { color: colors.textSecondary, fontSize: 13, fontWeight: '600' },
+  pestanaTextoActivo: { color: colors.sobreAcento },
   barra: { gap: spacing.sm, paddingTop: spacing.sm, paddingBottom: spacing.sm, borderBottomWidth: 1, borderBottomColor: colors.border },
   buscadorFila: { flexDirection: 'row', gap: spacing.sm, paddingHorizontal: spacing.md },
   buscador: {

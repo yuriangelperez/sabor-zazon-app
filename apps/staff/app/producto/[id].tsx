@@ -9,12 +9,20 @@ import {
   eliminarProducto,
   getIngredientes,
   getProductoById,
+  getProductos,
   guardarProducto,
   mensajeError,
   subirImagenProducto,
 } from '@sabor/api-client';
 import { Button, Chip, colors, fuenteImagen, QuantityStepper, radii, Selector, spacing, Text, TextInput } from '@sabor/ui';
-import { CATEGORIAS_MOMENTO, gruposParaProducto, piezasDeCombo, RELLENOS, SECCIONES_MENU } from '@sabor/utils';
+import {
+  CATEGORIAS_MOMENTO,
+  gruposParaProducto,
+  piezasDeCombo,
+  preciosDeRellenos,
+  RELLENOS,
+  SECCIONES_MENU,
+} from '@sabor/utils';
 
 interface Formulario {
   nombre: string;
@@ -134,7 +142,13 @@ export default function EditorProducto() {
     try {
       const imagenFinal = imagenLocal ? await subirImagenProducto(imagenLocal.uri, imagenLocal.tipo) : imagen;
       const grupos: GrupoOpciones[] = opcionesTocadas
-        ? gruposParaProducto(form.categoria, form.esCombo, { arepas: form.arepas, empanadas: form.empanadas })
+        ? gruposParaProducto(
+            form.categoria,
+            form.esCombo,
+            { arepas: form.arepas, empanadas: form.empanadas },
+            // Los rellenos del combo nuevo cuestan lo mismo que en los demás.
+            form.esCombo ? preciosDeRellenos(await getProductos()) : undefined
+          )
         : (original?.gruposOpciones ?? []);
 
       await guardarProducto({
