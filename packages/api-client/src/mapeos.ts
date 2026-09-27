@@ -141,6 +141,7 @@ export interface PedidoRow {
   direccion_entrega: string | null;
   costo_envio: number;
   metodo_pago: Pedido['metodoPago'];
+  pago_estado: Pedido['pagoEstado'];
   subtotal: number;
   recargo: number;
   descuento: number;
@@ -179,6 +180,7 @@ export function pedidoDesdeRow(r: PedidoRow): Pedido {
     direccionEntrega: r.direccion_entrega,
     costoEnvio: r.costo_envio,
     metodoPago: r.metodo_pago,
+    pagoEstado: r.pago_estado ?? 'no_aplica',
     subtotal: r.subtotal,
     recargo: r.recargo,
     descuento: r.descuento,

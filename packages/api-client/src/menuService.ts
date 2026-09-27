@@ -2,6 +2,7 @@ import type { GrupoOpciones, Ingrediente, Producto } from '@sabor/types';
 
 import { gruposARow, productoARow, productoDesdeRow, type ProductoRow } from './mapeos';
 import { asegurarConfiguracion, ESQUEMA, supabase, supabaseConfigurado } from './supabaseClient';
+import { idDesdeNombre } from './texto';
 
 const COLUMNAS_PRODUCTO =
   'id, nombre, descripcion, imagen, precio, descuento_porcentaje, categoria_base, categorias_momento, rellenos, es_combo, grupos_opciones, acompanamientos, ingredientes, activo, desactivado_hasta, orden';
@@ -85,13 +86,7 @@ export async function marcarIngredienteAgotado(id: string, agotado: boolean): Pr
 
 export async function crearIngrediente(nombre: string): Promise<Ingrediente> {
   asegurarConfiguracion();
-  const id = nombre
-    .normalize('NFD')
-    .replace(/[̀-ͯ]/g, '')
-    .toLowerCase()
-    .trim()
-    .replace(/[^a-z0-9]+/g, '-')
-    .replace(/(^-|-$)/g, '');
+  const id = idDesdeNombre(nombre);
   const { data, error } = await supabase
     .from('ingredientes')
     .insert({ id, nombre: nombre.trim() })

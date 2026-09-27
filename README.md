@@ -139,3 +139,34 @@ sesión iniciada, aunque la app esté cerrada. Una sola vez:
 Al entrar, la app pide permiso de notificaciones. El estado se ve en Ajustes →
 "Avisos de pedidos". En Expo Go y en la web no hay push (con la app abierta
 sigue sonando igual).
+
+### Mercado Pago (tarjeta y link de pago)
+
+Los pedidos con **Tarjeta** o **Mercado Pago** se pagan en Mercado Pago
+(Checkout Pro). Recepción ve el pedido y recibe el aviso recién cuando el
+pago se aprueba. El Access Token vive solo en Supabase (Edge Functions), nunca
+en la app.
+
+1. Supabase → SQL Editor → correr `supabase/migrations/0003_mercadopago.sql`.
+2. [Mercado Pago Developers](https://www.mercadopago.com.ar/developers/panel/app)
+   → **Crear aplicación** → tipo *Pagos online* → *Checkout Pro*.
+   En **Credenciales** copiá el **Access Token** (primero el de prueba).
+3. Supabase → Edge Functions → **Secrets** → agregar:
+   - `MP_ACCESS_TOKEN` = el Access Token
+   - `APP_URL` = `https://sabor-zazon-app-rr3c.vercel.app`
+4. Subir las funciones (desde la raíz del repo):
+   ```bash
+   npx supabase login
+   npx supabase link --project-ref mpjtxylzmoubywznqdqr
+   npx supabase functions deploy mp-pago --no-verify-jwt
+   npx supabase functions deploy mp-webhook --no-verify-jwt
+   ```
+5. (Opcional) Mercado Pago → tu app → **Webhooks** → URL
+   `https://mpjtxylzmoubywznqdqr.supabase.co/functions/v1/mp-webhook`, evento **Pagos**.
+   Copiá la clave secreta y guardala en Supabase como `MP_WEBHOOK_SECRET`.
+   No es obligatorio: cada pago ya le dice a Mercado Pago a dónde avisar.
+
+**Probar:** con el Access Token de prueba, pagá con una
+[tarjeta de prueba](https://www.mercadopago.com.ar/developers/es/docs/checkout-pro/additional-content/your-integrations/test/cards)
+(titular `APRO` = aprobado, `OTHE` = rechazado). Para cobrar de verdad,
+cambiá `MP_ACCESS_TOKEN` por el de producción.

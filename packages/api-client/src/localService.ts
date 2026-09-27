@@ -2,6 +2,7 @@ import type { ConfiguracionLocal, ZonaEnvio } from '@sabor/types';
 
 import { configuracionDesdeRow, zonaDesdeRow, type ConfiguracionRow, type ZonaRow } from './mapeos';
 import { asegurarConfiguracion, ESQUEMA, supabase, supabaseConfigurado } from './supabaseClient';
+import { idDesdeNombre } from './texto';
 
 export async function getConfiguracion(): Promise<ConfiguracionLocal> {
   asegurarConfiguracion();
@@ -35,6 +36,32 @@ export async function getZonasEnvio(): Promise<ZonaEnvio[]> {
     .order('orden');
   if (error) throw error;
   return (data as ZonaRow[]).map(zonaDesdeRow);
+}
+
+// Recepción: todas las zonas, también las desactivadas.
+export async function getZonasEnvioAdmin(): Promise<ZonaEnvio[]> {
+  asegurarConfiguracion();
+  const { data, error } = await supabase.from('zonas_envio').select('id, nombre, costo, activa').order('orden').order('nombre');
+  if (error) throw error;
+  return (data as ZonaRow[]).map(zonaDesdeRow);
+}
+
+// Cambia nombre, costo o si está activa. El costo nuevo vale para los
+// pedidos que entren desde ahora (crear_pedido lo lee de esta tabla).
+export async function actualizarZonaEnvio(id: string, cambios: Partial<Omit<ZonaEnvio, 'id'>>): Promise<void> {
+  asegurarConfiguracion();
+  const { error } = await supabase.from('zonas_envio').update(cambios).eq('id', id);
+  if (error) throw error;
+}
+
+export async function crearZonaEnvio(nombre: string, costo: number): Promise<void> {
+  asegurarConfiguracion();
+  const { count } = await supabase.from('zonas_envio').select('id', { count: 'exact', head: true });
+  const { error } = await supabase
+    .from('zonas_envio')
+    .insert({ id: idDesdeNombre(nombre), nombre: nombre.trim(), costo, activa: true, orden: count ?? 0 });
+  if (error?.code === '23505') throw new Error(`Ya existe una zona llamada "${nombre.trim()}".`);
+  if (error) throw error;
 }
 
 export function suscribirConfiguracion(onCambio: () => void): () => void {

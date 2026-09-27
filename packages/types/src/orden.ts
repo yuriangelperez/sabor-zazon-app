@@ -29,6 +29,16 @@ export type MetodoPago =
   | 'billetera_virtual_alias'
   | 'efectivo';
 
+// Pago online (Mercado Pago). 'no_aplica': efectivo o transferencia.
+// Un pedido con pago 'pendiente' o 'rechazado' no le aparece a recepción.
+export type PagoEstado = 'no_aplica' | 'pendiente' | 'aprobado' | 'rechazado' | 'reembolsado';
+
+// Métodos que se cobran con Mercado Pago (Checkout Pro).
+export const METODOS_MERCADO_PAGO: MetodoPago[] = ['tarjeta', 'billetera_virtual_checkout'];
+
+// Pagos con los que recepción ve el pedido.
+export const PAGOS_VISIBLES: PagoEstado[] = ['no_aplica', 'aprobado', 'reembolsado'];
+
 export type EstadoPedido =
   | 'por_aceptar'
   | 'en_preparacion'
@@ -61,6 +71,7 @@ export interface Pedido {
   direccionEntrega: string | null;
   costoEnvio: number;
   metodoPago: MetodoPago;
+  pagoEstado: PagoEstado;
   subtotal: number;
   recargo: number;
   descuento: number;

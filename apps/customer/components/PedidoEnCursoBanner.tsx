@@ -2,7 +2,7 @@ import { Pressable, StyleSheet, View, type StyleProp, type ViewStyle } from 'rea
 import { router } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { colors, radii, spacing, Text } from '@sabor/ui';
-import { ETIQUETA_ESTADO, numeroPedido } from '@sabor/utils';
+import { etiquetaSeguimiento, numeroPedido } from '@sabor/utils';
 
 import { useMisPedidos } from '../hooks/useMisPedidos';
 import { Contenedor } from './Contenedor';
@@ -32,7 +32,7 @@ export function PedidoEnCursoBanner({ style }: { style?: StyleProp<ViewStyle> })
           <Text style={styles.titulo}>
             {hayMas ? `Tenés ${enCurso.length} pedidos en curso` : `Tu pedido ${numeroPedido(pedido.numero)}`}
           </Text>
-          {!hayMas ? <Text style={styles.estado}>{ETIQUETA_ESTADO[pedido.seguimiento.estado]}</Text> : null}
+          {!hayMas ? <Text style={styles.estado}>{etiquetaSeguimiento(pedido.seguimiento.estado, pedido.seguimiento.pagoEstado)}</Text> : null}
         </View>
         <Text style={styles.ver}>Ver estado</Text>
         <Ionicons name="chevron-forward" size={18} color={colors.sobreAcento} />

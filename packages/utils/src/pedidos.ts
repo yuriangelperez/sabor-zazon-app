@@ -1,4 +1,4 @@
-import type { EstadoPedido, MetodoEntrega, MetodoPago } from '@sabor/types';
+import type { EstadoPedido, MetodoEntrega, MetodoPago, PagoEstado } from '@sabor/types';
 
 // "#0042": así se muestra el número de orden en todas las apps.
 export function numeroPedido(numero: number): string {
@@ -20,11 +20,31 @@ export const ETIQUETA_ENTREGA: Record<MetodoEntrega, string> = {
 };
 
 export const ETIQUETA_PAGO: Record<MetodoPago, string> = {
-  tarjeta: 'Tarjeta (link de pago)',
-  billetera_virtual_checkout: 'Mercado Pago (link)',
+  tarjeta: 'Tarjeta (Mercado Pago)',
+  billetera_virtual_checkout: 'Mercado Pago',
   billetera_virtual_alias: 'Transferencia',
   efectivo: 'Efectivo',
 };
+
+export const ETIQUETA_PAGO_ESTADO: Record<PagoEstado, string> = {
+  no_aplica: '',
+  pendiente: 'Falta pagar',
+  aprobado: 'Pagado',
+  rechazado: 'Pago rechazado',
+  reembolsado: 'Reembolsado',
+};
+
+// Lo que ve el cliente: mientras no pague, el pedido está "Falta pagar".
+export function etiquetaSeguimiento(estado: EstadoPedido, pagoEstado: PagoEstado): string {
+  if ((pagoEstado === 'pendiente' || pagoEstado === 'rechazado') && estado === 'por_aceptar') {
+    return ETIQUETA_PAGO_ESTADO[pagoEstado];
+  }
+  return ETIQUETA_ESTADO[estado];
+}
+
+export function faltaPagar(pagoEstado: PagoEstado): boolean {
+  return pagoEstado === 'pendiente' || pagoEstado === 'rechazado';
+}
 
 // "hace 5 min", "hace 1 h 10 min": antigüedad de un pedido en el tablero.
 export function tiempoTranscurrido(desdeIso: string, ahora: Date = new Date()): string {

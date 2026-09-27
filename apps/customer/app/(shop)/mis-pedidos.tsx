@@ -3,7 +3,7 @@ import { router } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import type { EstadoPedido } from '@sabor/types';
 import { Button, colors, radii, spacing, Text } from '@sabor/ui';
-import { ETIQUETA_ESTADO, formatPrice, horaCorta, numeroPedido } from '@sabor/utils';
+import { etiquetaSeguimiento, faltaPagar, formatPrice, horaCorta, numeroPedido } from '@sabor/utils';
 
 import { pedidoEnCurso, useMisPedidos, type MiPedido } from '../../hooks/useMisPedidos';
 
@@ -84,6 +84,7 @@ export default function MisPedidos() {
 
 function FilaPedido({ pedido }: { pedido: MiPedido }) {
   const estado = pedido.seguimiento?.estado;
+  const sinPagar = pedido.seguimiento != null && estado === 'por_aceptar' && faltaPagar(pedido.seguimiento.pagoEstado);
   const cantidad = pedido.seguimiento?.items.reduce((acc, i) => acc + i.cantidad, 0) ?? 0;
 
   return (
@@ -96,9 +97,9 @@ function FilaPedido({ pedido }: { pedido: MiPedido }) {
         <View style={styles.filaTitulo}>
           <Text style={styles.numero}>{numeroPedido(pedido.numero)}</Text>
           {estado ? (
-            <View style={[styles.estado, { backgroundColor: COLOR_ESTADO[estado] }]}>
-              <Text style={[styles.estadoTexto, ['por_aceptar', 'listo'].includes(estado) && { color: colors.sobreAcento }]}>
-                {ETIQUETA_ESTADO[estado]}
+            <View style={[styles.estado, { backgroundColor: sinPagar ? colors.warning : COLOR_ESTADO[estado] }]}>
+              <Text style={[styles.estadoTexto, (sinPagar || ['por_aceptar', 'listo'].includes(estado)) && { color: colors.sobreAcento }]}>
+                {etiquetaSeguimiento(estado, pedido.seguimiento!.pagoEstado)}
               </Text>
             </View>
           ) : null}

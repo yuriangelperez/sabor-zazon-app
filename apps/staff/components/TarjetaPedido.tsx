@@ -3,7 +3,7 @@ import { Linking, Pressable, StyleSheet, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import type { EstadoPedido, ItemPedido, Pedido } from '@sabor/types';
 import { acentoAlpha, Button, colors, radii, spacing, Text } from '@sabor/ui';
-import { ETIQUETA_PAGO, formatPrice, horaCorta, numeroPedido, tiempoTranscurrido } from '@sabor/utils';
+import { ETIQUETA_PAGO, ETIQUETA_PAGO_ESTADO, formatPrice, horaCorta, numeroPedido, tiempoTranscurrido } from '@sabor/utils';
 
 import { usePedidosEnVivoStore } from '../stores/usePedidosEnVivo';
 
@@ -54,6 +54,16 @@ export function TarjetaPedido({ pedido }: { pedido: Pedido }) {
             <Ionicons name={esDelivery ? 'bicycle' : 'storefront'} size={12} color={colors.textPrimary} />
             <Text style={styles.badgeTexto}>{esDelivery ? 'Delivery' : 'Retiro'}</Text>
           </View>
+          {pedido.pagoEstado === 'aprobado' ? (
+            <View style={[styles.badge, styles.badgePagado]}>
+              <Ionicons name="checkmark-circle" size={12} color={colors.textPrimary} />
+              <Text style={styles.badgeTexto}>Pagado</Text>
+            </View>
+          ) : pedido.pagoEstado === 'reembolsado' ? (
+            <View style={[styles.badge, styles.badgeReembolsado]}>
+              <Text style={styles.badgeTexto}>Reembolsado</Text>
+            </View>
+          ) : null}
           <View style={{ flex: 1 }} />
           <Text style={styles.total}>{formatPrice(pedido.total)}</Text>
         </View>
@@ -104,8 +114,15 @@ export function TarjetaPedido({ pedido }: { pedido: Pedido }) {
           <View style={styles.totales}>
             <LineaTotal etiqueta="Subtotal" valor={formatPrice(pedido.subtotal)} />
             {pedido.costoEnvio > 0 ? <LineaTotal etiqueta="Envío" valor={formatPrice(pedido.costoEnvio)} /> : null}
-            {pedido.recargo > 0 ? <LineaTotal etiqueta="Recargo link de pago" valor={formatPrice(pedido.recargo)} /> : null}
-            <LineaTotal etiqueta="Pago" valor={ETIQUETA_PAGO[pedido.metodoPago]} />
+            {pedido.recargo > 0 ? <LineaTotal etiqueta="Recargo Mercado Pago" valor={formatPrice(pedido.recargo)} /> : null}
+            <LineaTotal
+              etiqueta="Pago"
+              valor={
+                pedido.pagoEstado === 'no_aplica'
+                  ? ETIQUETA_PAGO[pedido.metodoPago]
+                  : `${ETIQUETA_PAGO[pedido.metodoPago]} · ${ETIQUETA_PAGO_ESTADO[pedido.pagoEstado]}`
+              }
+            />
           </View>
 
           {pedido.estado === 'por_aceptar' ? (
@@ -194,6 +211,8 @@ const styles = StyleSheet.create({
   badge: { flexDirection: 'row', alignItems: 'center', gap: 4, borderRadius: radii.pill, paddingHorizontal: 8, paddingVertical: 2 },
   badgeDelivery: { backgroundColor: colors.azul },
   badgeRetiro: { backgroundColor: colors.surfaceAlt },
+  badgePagado: { backgroundColor: colors.success },
+  badgeReembolsado: { backgroundColor: colors.cerrado },
   badgeTexto: { color: colors.textPrimary, fontSize: 11, fontWeight: '600' },
   total: { color: colors.textPrimary, fontSize: 18, fontWeight: '700' },
   meta: { color: colors.textSecondary, fontSize: 13 },

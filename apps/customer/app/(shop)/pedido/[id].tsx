@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { ActivityIndicator, Linking, ScrollView, StyleSheet, View } from 'react-native';
 import { router, Stack, useLocalSearchParams } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -6,11 +6,12 @@ import { Ionicons } from '@expo/vector-icons';
 import type { EstadoPedido } from '@sabor/types';
 import { mensajeError, verPedido, type SeguimientoPedido } from '@sabor/api-client';
 import { acentoAlpha, Button, colors, radii, spacing, Text } from '@sabor/ui';
-import { formatPrice, numeroPedido } from '@sabor/utils';
+import { ETIQUETA_PAGO, faltaPagar, formatPrice, numeroPedido } from '@sabor/utils';
 
 import { Contenedor } from '../../../components/Contenedor';
 import { LOCAL, whatsappUrl } from '../../../constants/local';
 import { useLocal } from '../../../hooks/useLocal';
+import { usePagoMercadoPago } from '../../../hooks/usePagoMercadoPago';
 import { usePedidosStore } from '../../../stores/usePedidosStore';
 
 const PASOS: { estado: EstadoPedido; titulo: string; icono: keyof typeof Ionicons.glyphMap }[] = [
@@ -32,6 +33,8 @@ export default function SeguimientoPedidoPantalla() {
   const [pedido, setPedido] = useState<SeguimientoPedido | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [cargando, setCargando] = useState(true);
+  const pago = usePagoMercadoPago(params.id, codigo);
+  const yaVerificado = useRef(false);
 
   const cargar = useCallback(async () => {
     if (!params.id || !codigo) {
@@ -59,6 +62,23 @@ export default function SeguimientoPedidoPantalla() {
     return () => clearInterval(intervalo);
   }, [cargar]);
 
+  // Al volver de Mercado Pago (o al abrir un pedido sin pagar) se pregunta
+  // una vez si el pago ya se aprobó, por si el aviso de Mercado Pago demora.
+  const pagoPendiente = pedido != null && faltaPagar(pedido.pagoEstado);
+  const { verificar } = pago;
+  useEffect(() => {
+    if (!pagoPendiente || yaVerificado.current) return;
+    yaVerificado.current = true;
+    void verificar(true).then((estado) => {
+      if (estado === 'aprobado') void cargar();
+    });
+  }, [pagoPendiente, verificar, cargar]);
+
+  const verificarAhora = async () => {
+    await verificar();
+    await cargar();
+  };
+
   if (cargando) return <ActivityIndicator color={colors.acento} style={{ marginTop: spacing.xl }} />;
 
   if (!pedido) {
@@ -71,6 +91,8 @@ export default function SeguimientoPedidoPantalla() {
   }
 
   const cancelado = pedido.estado === 'cancelado' || pedido.estado === 'rechazado';
+  const sinPagar = !cancelado && faltaPagar(pedido.pagoEstado);
+  const rechazado = pedido.pagoEstado === 'rechazado';
   const indiceActual = PASOS.findIndex((p) => p.estado === pedido.estado);
   const mensajeWhatsapp = `¡Hola! Te escribo por mi pedido ${numeroPedido(pedido.numero)}.`;
 
@@ -81,20 +103,51 @@ export default function SeguimientoPedidoPantalla() {
         <Contenedor style={styles.contenido}>
           <View style={styles.cabecera}>
             <Ionicons
-              name={cancelado ? 'close-circle' : 'checkmark-circle'}
+              name={cancelado ? 'close-circle' : sinPagar ? 'card' : 'checkmark-circle'}
               size={56}
-              color={cancelado ? colors.danger : colors.success}
+              color={cancelado || rechazado ? colors.danger : sinPagar ? colors.acento : colors.success}
             />
-            <Text style={styles.titulo}>{cancelado ? 'Pedido cancelado' : '¡Recibimos tu pedido!'}</Text>
+            <Text style={styles.titulo}>
+              {cancelado
+                ? 'Pedido cancelado'
+                : sinPagar
+                  ? rechazado
+                    ? 'El pago no se aprobó'
+                    : 'Falta pagar tu pedido'
+                  : '¡Recibimos tu pedido!'}
+            </Text>
             <Text style={styles.numero}>{numeroPedido(pedido.numero)}</Text>
             <Text style={styles.textoSecundario}>
               {cancelado
                 ? 'Si tenés dudas, escribinos por WhatsApp.'
-                : 'Esta pantalla se actualiza sola a medida que avanza tu pedido.'}
+                : sinPagar
+                  ? rechazado
+                    ? 'Probá de nuevo con otra tarjeta o medio de pago. El local recibe tu pedido cuando se aprueba el pago.'
+                    : 'El local recibe tu pedido cuando se aprueba el pago en Mercado Pago.'
+                  : 'Esta pantalla se actualiza sola a medida que avanza tu pedido.'}
             </Text>
           </View>
 
-          {!cancelado ? (
+          {sinPagar ? (
+            <View style={[styles.tarjeta, styles.tarjetaPago]}>
+              <Button
+                label={pago.abriendo ? 'Abriendo Mercado Pago…' : `Pagar ${formatPrice(pedido.total)} con Mercado Pago`}
+                onPress={() => void pago.pagar()}
+                disabled={pago.abriendo}
+                icono={pago.abriendo ? <ActivityIndicator color={colors.sobreAcento} /> : <Ionicons name="card-outline" size={18} color={colors.sobreAcento} />}
+              />
+              <Button
+                label={pago.verificando ? 'Consultando…' : 'Ya pagué, actualizar'}
+                variante="contorno"
+                onPress={() => void verificarAhora()}
+                disabled={pago.verificando}
+              />
+              {pago.error ? <Text style={styles.error}>{pago.error}</Text> : null}
+              <Text style={styles.textoSecundario}>Tarjeta de débito, crédito o dinero en cuenta de Mercado Pago.</Text>
+            </View>
+          ) : null}
+
+          {!cancelado && !sinPagar ? (
             <View style={styles.tarjeta}>
               {PASOS.map((paso, i) => {
                 const hecho = i <= indiceActual;
@@ -132,11 +185,17 @@ export default function SeguimientoPedidoPantalla() {
             <View style={styles.separador} />
             <Linea etiqueta="Subtotal" valor={formatPrice(pedido.subtotal)} />
             <Linea etiqueta="Envío" valor={pedido.costoEnvio > 0 ? formatPrice(pedido.costoEnvio) : 'Gratis'} />
-            {pedido.recargo > 0 ? <Linea etiqueta="Recargo link de pago" valor={formatPrice(pedido.recargo)} /> : null}
+            {pedido.recargo > 0 ? <Linea etiqueta="Recargo Mercado Pago" valor={formatPrice(pedido.recargo)} /> : null}
             <View style={styles.total}>
               <Text style={styles.totalEtiqueta}>Total</Text>
               <Text style={styles.totalValor}>{formatPrice(pedido.total)}</Text>
             </View>
+            {pedido.pagoEstado === 'aprobado' ? (
+              <View style={styles.pagado}>
+                <Ionicons name="checkmark-circle" size={16} color={colors.success} />
+                <Text style={styles.pagadoTexto}>Pagado con {ETIQUETA_PAGO[pedido.metodoPago]}</Text>
+              </View>
+            ) : null}
           </View>
 
           {pedido.metodoPago === 'billetera_virtual_alias' && config?.aliasTransferencia && !cancelado ? (
@@ -220,4 +279,7 @@ const styles = StyleSheet.create({
   total: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'baseline' },
   totalEtiqueta: { color: colors.textPrimary, fontSize: 18, fontWeight: '700' },
   totalValor: { color: colors.acento, fontSize: 22, fontWeight: '700' },
+  pagado: { flexDirection: 'row', alignItems: 'center', gap: 6 },
+  pagadoTexto: { color: colors.success, fontSize: 14, fontWeight: '600' },
+  error: { color: colors.danger, fontSize: 14, textAlign: 'center' },
 });

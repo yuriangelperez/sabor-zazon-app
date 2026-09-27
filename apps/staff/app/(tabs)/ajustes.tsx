@@ -5,10 +5,11 @@ import { getConfiguracion, mensajeError, pausarRecepcion, suscribirConfiguracion
 import { Button, colors, radii, spacing, Text, TextInput } from '@sabor/ui';
 import { estaAbierto } from '@sabor/utils';
 
+import { ZonasEnvioPanel } from '../../components/ZonasEnvioPanel';
 import { activarAvisos, useAvisosStore } from '../../services/notificaciones';
 import { useSesionStore } from '../../stores/useSesionStore';
 
-// RF-13 (cerrar tienda) y cuenta. Los ingredientes agotados están en Menú.
+// RF-13 (cerrar tienda), zonas y costos de envío, avisos y cuenta. Los ingredientes agotados están en Menú.
 export default function Ajustes() {
   const { perfil, salir } = useSesionStore();
   const avisos = useAvisosStore();
@@ -80,6 +81,10 @@ export default function Ajustes() {
         ) : (
           <Text style={styles.ayuda}>Cargando…</Text>
         )}
+      </Seccion>
+
+      <Seccion titulo="Envíos">
+        <ZonasEnvioPanel />
       </Seccion>
 
       {Platform.OS !== 'web' ? (

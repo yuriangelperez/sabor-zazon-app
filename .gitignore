@@ -12,3 +12,7 @@ coverage/
 
 # Claves privadas de Firebase (cuenta de servicio): nunca al repo
 *firebase-adminsdk*.json
+
+# Supabase CLI
+supabase/.temp/
+supabase/.branches/

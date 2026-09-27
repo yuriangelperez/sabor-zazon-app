@@ -7,6 +7,10 @@ import { cambiarEstadoPedido, getPedidosActivos, mensajeError, suscribirPedidos 
 
 const sonidoNuevoPedido = require('../assets/sonidos/nuevo_pedido.mp3');
 
+// Pedidos que ya se anunciaron (o que ya estaban en pantalla), para que un
+// pago aprobado no suene dos veces si Mercado Pago avisa más de una vez.
+const anunciados = new Set<number>();
+
 interface PedidosEnVivoStore {
   pedidos: Pedido[];
   cargando: boolean;
@@ -28,6 +32,7 @@ export const usePedidosEnVivoStore = create<PedidosEnVivoStore>()((set, get) => 
   cargar: async () => {
     try {
       const pedidos = await getPedidosActivos();
+      pedidos.forEach((p) => anunciados.add(p.numero));
       set({ pedidos, error: null });
     } catch (err) {
       set({ error: mensajeError(err, 'No se pudieron cargar los pedidos.') });
@@ -61,7 +66,9 @@ export function usePedidosEnVivo() {
     void cargar();
 
     const desuscribir = suscribirPedidos((evento) => {
-      if (evento.tipo === 'nuevo') {
+      const esNuevo = (evento.tipo === 'nuevo' || evento.tipo === 'pagado') && !anunciados.has(evento.numero);
+      if (esNuevo) {
+        anunciados.add(evento.numero);
         usePedidosEnVivoStore.setState({ ultimoNuevo: evento.numero });
         try {
           reproductor.seekTo(0);

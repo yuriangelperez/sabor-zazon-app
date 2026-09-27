@@ -1,0 +1,12 @@
+{
+  "expo": {
+    "extra": {
+      "eas": {
+        "projectId": "8834f59f-58fe-4e56-9685-8137914cfdbf"
+      }
+    },
+    "android": {
+      "package": "com.yuriperez15.saborysazon"
+    }
+  }
+}

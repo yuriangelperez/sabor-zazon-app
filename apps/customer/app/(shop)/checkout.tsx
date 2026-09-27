@@ -3,7 +3,7 @@ import { ActivityIndicator, KeyboardAvoidingView, Platform, Pressable, ScrollVie
 import { router } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
-import type { MetodoEntrega, MetodoPago, ZonaEnvio } from '@sabor/types';
+import { METODOS_MERCADO_PAGO, type MetodoEntrega, type MetodoPago, type ZonaEnvio } from '@sabor/types';
 import { crearPedido, getZonasEnvio, mensajeError } from '@sabor/api-client';
 import { acentoAlpha, Button, colors, radii, Selector, spacing, Text, TextInput } from '@sabor/ui';
 import { formatPrice } from '@sabor/utils';
@@ -11,14 +11,15 @@ import { formatPrice } from '@sabor/utils';
 import { Contenedor } from '../../components/Contenedor';
 import { EstadoLocalBanner } from '../../components/EstadoLocalBanner';
 import { useLocal } from '../../hooks/useLocal';
+import { abrirPagoMercadoPago } from '../../hooks/usePagoMercadoPago';
 import { selectSubtotal, useCarritoStore } from '../../stores/useCarritoStore';
 import { usePedidosStore } from '../../stores/usePedidosStore';
 
 const METODOS_PAGO: { id: MetodoPago; titulo: string; detalle: string; conRecargo: boolean; icono: keyof typeof Ionicons.glyphMap }[] = [
   { id: 'billetera_virtual_alias', titulo: 'Transferencia', detalle: 'Alias o CVU', conRecargo: false, icono: 'swap-horizontal-outline' },
   { id: 'efectivo', titulo: 'Efectivo', detalle: 'Al recibir o retirar', conRecargo: false, icono: 'cash-outline' },
-  { id: 'billetera_virtual_checkout', titulo: 'Mercado Pago', detalle: 'Link de pago', conRecargo: true, icono: 'wallet-outline' },
-  { id: 'tarjeta', titulo: 'Tarjeta', detalle: 'Débito o crédito, link de pago', conRecargo: true, icono: 'card-outline' },
+  { id: 'billetera_virtual_checkout', titulo: 'Mercado Pago', detalle: 'Dinero en cuenta', conRecargo: true, icono: 'wallet-outline' },
+  { id: 'tarjeta', titulo: 'Tarjeta', detalle: 'Débito o crédito', conRecargo: true, icono: 'card-outline' },
 ];
 
 // RF-06: checkout. Los totales de esta pantalla son una vista previa: el
@@ -53,6 +54,7 @@ export default function Checkout() {
   const zona = zonas.find((z) => z.id === zonaId);
   const envio = entrega === 'delivery' ? (zona?.costo ?? 0) : 0;
   const metodo = METODOS_PAGO.find((m) => m.id === pago);
+  const conMercadoPago = pago != null && METODOS_MERCADO_PAGO.includes(pago);
   const recargo = metodo?.conRecargo ? Math.round((subtotal * (config?.recargoLinkPago ?? 0)) / 100) : 0;
   const total = subtotal + envio + recargo;
 
@@ -107,6 +109,11 @@ export default function Checkout() {
       });
       vaciar();
       router.replace({ pathname: '/pedido/[id]', params: { id: creado.id, c: creado.codigoSeguimiento } });
+      if (conMercadoPago) {
+        // Si no se puede abrir Mercado Pago, el seguimiento muestra el botón
+        // "Pagar" para reintentar: el pedido ya quedó guardado.
+        await abrirPagoMercadoPago(creado.id, creado.codigoSeguimiento).catch(() => undefined);
+      }
     } catch (err) {
       setError(mensajeError(err, 'No pudimos enviar tu pedido. Probá de nuevo.'));
     } finally {
@@ -211,8 +218,14 @@ export default function Checkout() {
                 <Text style={styles.ayuda}>Transferí el total y mandanos el comprobante por WhatsApp.</Text>
               </View>
             ) : null}
-            {metodo?.conRecargo ? (
-              <Text style={styles.ayuda}>Te enviamos el link de pago por WhatsApp al confirmar.</Text>
+            {conMercadoPago ? (
+              <View style={styles.aviso}>
+                <Ionicons name="lock-closed-outline" size={18} color={colors.acento} />
+                <Text style={styles.avisoTexto}>
+                  Al confirmar te llevamos a Mercado Pago para pagar de forma segura. El local recibe tu pedido cuando se
+                  aprueba el pago.
+                </Text>
+              </View>
             ) : null}
           </Seccion>
 
@@ -243,7 +256,7 @@ export default function Checkout() {
               etiqueta="Envío"
               valor={entrega === 'retiro_local' ? 'Gratis' : zona ? formatPrice(envio) : 'Elegí tu zona'}
             />
-            {recargo > 0 ? <Linea etiqueta={`Recargo link de pago (${config?.recargoLinkPago}%)`} valor={formatPrice(recargo)} /> : null}
+            {recargo > 0 ? <Linea etiqueta={`Recargo Mercado Pago (${config?.recargoLinkPago}%)`} valor={formatPrice(recargo)} /> : null}
             <View style={styles.lineaTotal}>
               <Text style={styles.totalEtiqueta}>Total</Text>
               <Text style={styles.totalValor}>{formatPrice(total)}</Text>
@@ -273,7 +286,17 @@ export default function Checkout() {
             <Text style={styles.faltantes}>Falta: {faltantes.join(', ')}.</Text>
           ) : null}
           <Button
-            label={enviando ? 'Enviando…' : abierto ? `Confirmar pedido · ${formatPrice(total)}` : 'El local está cerrado'}
+            label={
+              enviando
+                ? conMercadoPago
+                  ? 'Abriendo Mercado Pago…'
+                  : 'Enviando…'
+                : !abierto
+                  ? 'El local está cerrado'
+                  : conMercadoPago
+                    ? `Pagar ${formatPrice(total)} con Mercado Pago`
+                    : `Confirmar pedido · ${formatPrice(total)}`
+            }
             onPress={confirmar}
             disabled={enviando || !abierto}
             icono={enviando ? <ActivityIndicator color={colors.sobreAcento} /> : undefined}
