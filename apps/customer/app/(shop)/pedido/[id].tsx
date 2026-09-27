@@ -25,7 +25,7 @@ const INTERVALO_MS = 10_000;
 
 // RF-07: confirmación y seguimiento del pedido.
 export default function SeguimientoPedidoPantalla() {
-  const params = useLocalSearchParams<{ id: string; c?: string }>();
+  const params = useLocalSearchParams<{ id: string; c?: string; e?: string }>();
   const guardado = usePedidosStore((s) => s.pedidos.find((p) => p.id === params.id));
   const codigo = params.c ?? guardado?.codigo;
   const { config } = useLocal();
@@ -142,7 +142,7 @@ export default function SeguimientoPedidoPantalla() {
                 onPress={() => void verificarAhora()}
                 disabled={pago.verificando}
               />
-              {pago.error ? <Text style={styles.error}>{pago.error}</Text> : null}
+              {pago.error || params.e ? <Text style={styles.error}>{pago.error ?? params.e}</Text> : null}
               <Text style={styles.textoSecundario}>Tarjeta de débito, crédito o dinero en cuenta de Mercado Pago.</Text>
             </View>
           ) : null}

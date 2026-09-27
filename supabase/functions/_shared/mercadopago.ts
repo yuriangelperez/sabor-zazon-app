@@ -24,7 +24,7 @@ export function respuesta(cuerpo: unknown, status = 200): Response {
 
 export function secreto(nombre: string): string {
   const valor = Deno.env.get(nombre);
-  if (!valor) throw new Error(`Falta el secreto ${nombre} en Supabase (Edge Functions → Secrets).`);
+  if (!valor) throw new ErrorMP(`Falta el secreto ${nombre} en Supabase (Edge Functions → Secrets).`);
   return valor;
 }
 
@@ -33,6 +33,15 @@ export const db = createClient(secreto('SUPABASE_URL'), secreto('SUPABASE_SERVIC
   db: { schema: 'saborsazon' },
   auth: { persistSession: false },
 });
+
+// Error para mostrarle al cliente o a quien configura (sin datos secretos).
+export class ErrorMP extends Error {}
+
+// "2026-09-27T21:30:00.000-03:00": formato de fechas que pide Mercado Pago.
+export function fechaMP(fecha: Date): string {
+  const arg = new Date(fecha.getTime() - 3 * 60 * 60 * 1000);
+  return arg.toISOString().replace('Z', '-03:00');
+}
 
 export async function mp<T>(ruta: string, init: RequestInit = {}): Promise<T> {
   const res = await fetch(`${API_MP}${ruta}`, {
@@ -46,7 +55,11 @@ export async function mp<T>(ruta: string, init: RequestInit = {}): Promise<T> {
   const datos = await res.json().catch(() => ({}));
   if (!res.ok) {
     console.error('Mercado Pago respondió', res.status, JSON.stringify(datos));
-    throw new Error(`Mercado Pago respondió ${res.status}`);
+    if (res.status === 401 || res.status === 403) {
+      throw new ErrorMP('El Access Token de Mercado Pago es inválido (revisá el secreto MP_ACCESS_TOKEN en Supabase).');
+    }
+    const detalle = (datos as { message?: string }).message;
+    throw new ErrorMP(`Mercado Pago rechazó el pago${detalle ? `: ${detalle}` : ''}.`);
   }
   return datos as T;
 }

@@ -6,7 +6,7 @@
 // El cliente se identifica con el id y el código de seguimiento del pedido.
 // Deploy: npx supabase functions deploy mp-pago --no-verify-jwt
 
-import { cors, db, mp, respuesta, secreto, sincronizarPedido } from '../_shared/mercadopago.ts';
+import { cors, db, ErrorMP, fechaMP, mp, respuesta, secreto, sincronizarPedido } from '../_shared/mercadopago.ts';
 
 interface Pedido {
   id: string;
@@ -77,8 +77,8 @@ Deno.serve(async (req) => {
         binary_mode: true,
         payment_methods: { excluded_payment_types: [{ id: 'ticket' }, { id: 'atm' }] },
         expires: true,
-        expiration_date_from: new Date().toISOString(),
-        expiration_date_to: vence.toISOString(),
+        expiration_date_from: fechaMP(new Date()),
+        expiration_date_to: fechaMP(vence),
       }),
     });
 
@@ -86,6 +86,7 @@ Deno.serve(async (req) => {
     return respuesta({ url: preferencia.init_point });
   } catch (err) {
     console.error(err);
-    return respuesta({ error: 'No pudimos conectar con Mercado Pago. Probá de nuevo en unos minutos.' }, 502);
+    const mensaje = err instanceof ErrorMP ? err.message : 'No pudimos conectar con Mercado Pago. Probá de nuevo en unos minutos.';
+    return respuesta({ error: mensaje }, 502);
   }
 });

@@ -10,6 +10,7 @@ import { formatPrice } from '@sabor/utils';
 
 import { Contenedor } from '../../components/Contenedor';
 import { EstadoLocalBanner } from '../../components/EstadoLocalBanner';
+import { TerminosModal } from '../../components/TerminosModal';
 import { useLocal } from '../../hooks/useLocal';
 import { abrirPagoMercadoPago } from '../../hooks/usePagoMercadoPago';
 import { selectSubtotal, useCarritoStore } from '../../stores/useCarritoStore';
@@ -41,6 +42,7 @@ export default function Checkout() {
   const [pago, setPago] = useState<MetodoPago | null>(null);
   const [observaciones, setObservaciones] = useState('');
   const [terminos, setTerminos] = useState(false);
+  const [verTerminos, setVerTerminos] = useState(false);
   const [intentoEnviar, setIntentoEnviar] = useState(false);
   const [enviando, setEnviando] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -108,11 +110,19 @@ export default function Checkout() {
         creadoEn: new Date().toISOString(),
       });
       vaciar();
-      router.replace({ pathname: '/pedido/[id]', params: { id: creado.id, c: creado.codigoSeguimiento } });
-      if (conMercadoPago) {
-        // Si no se puede abrir Mercado Pago, el seguimiento muestra el botón
-        // "Pagar" para reintentar: el pedido ya quedó guardado.
-        await abrirPagoMercadoPago(creado.id, creado.codigoSeguimiento).catch(() => undefined);
+      if (!conMercadoPago) {
+        router.replace({ pathname: '/pedido/[id]', params: { id: creado.id, c: creado.codigoSeguimiento } });
+        return;
+      }
+      try {
+        await abrirPagoMercadoPago(creado.id, creado.codigoSeguimiento);
+      } catch (err) {
+        // El pedido ya quedó guardado: el seguimiento muestra el error y el
+        // botón "Pagar" para reintentar.
+        router.replace({
+          pathname: '/pedido/[id]',
+          params: { id: creado.id, c: creado.codigoSeguimiento, e: mensajeError(err, 'No pudimos abrir Mercado Pago.') },
+        });
       }
     } catch (err) {
       setError(mensajeError(err, 'No pudimos enviar tu pedido. Probá de nuevo.'));
@@ -263,21 +273,37 @@ export default function Checkout() {
             </View>
           </Seccion>
 
-          <Pressable
-            accessibilityRole="checkbox"
-            accessibilityState={{ checked: terminos }}
-            onPress={() => setTerminos((t) => !t)}
-            style={styles.terminos}
-          >
-            <View style={[styles.check, terminos && styles.checkActivo, mostrarError(!terminos) && styles.checkError]}>
+          <View style={styles.terminos}>
+            <Pressable
+              accessibilityRole="checkbox"
+              accessibilityState={{ checked: terminos }}
+              accessibilityLabel="Acepto los términos y condiciones"
+              onPress={() => setTerminos((t) => !t)}
+              hitSlop={8}
+              style={[styles.check, terminos && styles.checkActivo, mostrarError(!terminos) && styles.checkError]}
+            >
               {terminos ? <Ionicons name="checkmark" size={16} color={colors.sobreAcento} /> : null}
-            </View>
+            </Pressable>
             <Text style={styles.terminosTexto}>
-              Acepto los términos y condiciones. Si cancelo un pedido que ya está listo, se me devuelve el 70% del total.
+              <Text style={styles.terminosTexto} onPress={() => setTerminos((t) => !t)}>
+                Acepto los{' '}
+              </Text>
+              <Text style={styles.terminosEnlace} onPress={() => setVerTerminos(true)} accessibilityRole="link">
+                términos y condiciones
+              </Text>
             </Text>
-          </Pressable>
+          </View>
         </Contenedor>
       </ScrollView>
+
+      <TerminosModal
+        visible={verTerminos}
+        onCerrar={() => setVerTerminos(false)}
+        onAceptar={() => {
+          setTerminos(true);
+          setVerTerminos(false);
+        }}
+      />
 
       <View style={[styles.barra, { paddingBottom: insets.bottom + spacing.md }]}>
         <Contenedor style={styles.barraContenido}>
@@ -476,7 +502,7 @@ const styles = StyleSheet.create({
   totalEtiqueta: { color: colors.textPrimary, fontSize: 18, fontWeight: '700' },
   totalValor: { color: colors.acento, fontSize: 22, fontWeight: '700' },
 
-  terminos: { flexDirection: 'row', gap: spacing.md, alignItems: 'flex-start', paddingHorizontal: spacing.xs },
+  terminos: { flexDirection: 'row', gap: spacing.md, alignItems: 'center', paddingHorizontal: spacing.xs },
   check: {
     width: 24,
     height: 24,
@@ -488,7 +514,8 @@ const styles = StyleSheet.create({
   },
   checkActivo: { backgroundColor: colors.acento, borderColor: colors.acento },
   checkError: { borderColor: colors.danger },
-  terminosTexto: { flex: 1, color: colors.textSecondary, fontSize: 13, lineHeight: 19 },
+  terminosTexto: { flex: 1, color: colors.textSecondary, fontSize: 14, lineHeight: 20 },
+  terminosEnlace: { color: colors.acento, fontSize: 14, fontWeight: '600', textDecorationLine: 'underline' },
 
   barra: {
     position: 'absolute',
