@@ -7,6 +7,6 @@
 // Los botones de cada producto llevan a `${URL_PEDIDOS}/producto/<id>` y los
 // botones generales a `${URL_PEDIDOS}/menu`.
 window.SABOR_CONFIG = {
-    URL_PEDIDOS: 'http://localhost:8081',
+    URL_PEDIDOS: 'https://sabor-zazon-app-rr3c.vercel.app',
     HORARIO: { apertura: '10:00', cierre: '22:00' },
 };
