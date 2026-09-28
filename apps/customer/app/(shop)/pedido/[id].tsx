@@ -27,6 +27,7 @@ const INTERVALO_MS = 10_000;
 export default function SeguimientoPedidoPantalla() {
   const params = useLocalSearchParams<{ id: string; c?: string; e?: string }>();
   const guardado = usePedidosStore((s) => s.pedidos.find((p) => p.id === params.id));
+  const quitarPedidos = usePedidosStore((s) => s.quitarPedidos);
   const codigo = params.c ?? guardado?.codigo;
   const { config } = useLocal();
   const insets = useSafeAreaInsets();
@@ -45,7 +46,10 @@ export default function SeguimientoPedidoPantalla() {
     }
     try {
       const datos = await verPedido(params.id, codigo);
-      if (!datos) setError('No encontramos este pedido.');
+      if (!datos) {
+        setError('No encontramos este pedido. Puede que el local lo haya eliminado.');
+        quitarPedidos([params.id]); // que no siga apareciendo en "Mis pedidos"
+      }
       else {
         setPedido(datos);
         setError(null);
@@ -55,7 +59,7 @@ export default function SeguimientoPedidoPantalla() {
     } finally {
       setCargando(false);
     }
-  }, [params.id, codigo]);
+  }, [params.id, codigo, quitarPedidos]);
 
   useEffect(() => {
     void cargar();

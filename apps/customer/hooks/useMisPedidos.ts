@@ -19,6 +19,7 @@ export function pedidoEnCurso(p: MiPedido): boolean {
 // Consulta cada pedido con su código de seguimiento y se refresca solo.
 export function useMisPedidos() {
   const guardados = usePedidosStore((s) => s.pedidos);
+  const quitarPedidos = usePedidosStore((s) => s.quitarPedidos);
   const [estados, setEstados] = useState<Record<string, SeguimientoPedido | null>>({});
   const [cargando, setCargando] = useState(guardados.length > 0);
 
@@ -27,18 +28,22 @@ export function useMisPedidos() {
       setCargando(false);
       return;
     }
+    // undefined = no se pudo consultar (sin conexión): queda en "Sin estado".
+    // null = la base respondió que no existe: se saca de la lista.
     const resultados = await Promise.all(
       guardados.map(async (p) => {
         try {
           return [p.id, await verPedido(p.id, p.codigo)] as const;
         } catch {
-          return [p.id, null] as const;
+          return [p.id, undefined] as const;
         }
       })
     );
-    setEstados(Object.fromEntries(resultados));
+    const inexistentes = resultados.filter(([, s]) => s === null).map(([id]) => id);
+    if (inexistentes.length > 0) quitarPedidos(inexistentes);
+    setEstados(Object.fromEntries(resultados.filter(([, s]) => s != null)) as Record<string, SeguimientoPedido>);
     setCargando(false);
-  }, [guardados]);
+  }, [guardados, quitarPedidos]);
 
   useEffect(() => {
     void cargar();

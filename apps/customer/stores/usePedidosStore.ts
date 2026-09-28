@@ -16,6 +16,7 @@ interface PedidosStore {
   celular: string;
   guardarPedido: (pedido: PedidoGuardado) => void;
   guardarDatos: (nombre: string, celular: string) => void;
+  quitarPedidos: (ids: string[]) => void;
 }
 
 // Pedidos hechos desde este dispositivo, para poder volver a su seguimiento.
@@ -27,6 +28,8 @@ export const usePedidosStore = create<PedidosStore>()(
       celular: '',
       guardarPedido: (pedido) => set((s) => ({ pedidos: [pedido, ...s.pedidos].slice(0, 20) })),
       guardarDatos: (nombre, celular) => set({ nombre, celular }),
+      // Pedidos que ya no existen en la base (ej. borrados por el local).
+      quitarPedidos: (ids) => set((s) => ({ pedidos: s.pedidos.filter((p) => !ids.includes(p.id)) })),
     }),
     {
       name: 'sabor-pedidos',
