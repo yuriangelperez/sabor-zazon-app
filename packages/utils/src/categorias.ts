@@ -15,6 +15,7 @@ export const CATEGORIAS_MOMENTO: { id: CategoriaMomento; label: string }[] = [
   { id: 'promociones', label: 'Promociones' },
   { id: 'combos', label: 'Combos' },
   { id: 'almuerzos', label: 'Almuerzos' },
+  { id: 'cena', label: 'Cenas' },
   { id: 'desayunos', label: 'Desayunos' },
   { id: 'postres', label: 'Postres' },
 ];

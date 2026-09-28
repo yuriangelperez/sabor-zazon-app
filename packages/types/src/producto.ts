@@ -10,6 +10,7 @@ export type CategoriaBase =
 export type CategoriaMomento =
   | 'promociones'
   | 'almuerzos'
+  | 'cena'
   | 'desayunos'
   | 'postres'
   | 'combos';
