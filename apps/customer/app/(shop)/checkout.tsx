@@ -37,6 +37,7 @@ export default function Checkout() {
   const [celular, setCelular] = useState(datosGuardados.celular);
   const [entrega, setEntrega] = useState<MetodoEntrega>('retiro_local');
   const [zonas, setZonas] = useState<ZonaEnvio[]>([]);
+  const [zonasCargadas, setZonasCargadas] = useState(false);
   const [zonaId, setZonaId] = useState<string | null>(null);
   const [direccion, setDireccion] = useState('');
   const [pago, setPago] = useState<MetodoPago | null>(null);
@@ -50,8 +51,15 @@ export default function Checkout() {
   useEffect(() => {
     getZonasEnvio()
       .then(setZonas)
-      .catch(() => setZonas([]));
+      .catch(() => setZonas([]))
+      .finally(() => setZonasCargadas(true));
   }, []);
+
+  // Sin zonas activas no hay delivery: solo se puede retirar en el local.
+  const sinDelivery = zonasCargadas && zonas.length === 0;
+  useEffect(() => {
+    if (sinDelivery) setEntrega('retiro_local');
+  }, [sinDelivery]);
 
   const zona = zonas.find((z) => z.id === zonaId);
   const envio = entrega === 'delivery' ? (zona?.costo ?? 0) : 0;
@@ -171,7 +179,8 @@ export default function Checkout() {
                 onPress={() => setEntrega('delivery')}
                 icono="bicycle-outline"
                 titulo="Delivery"
-                detalle="Según la zona"
+                detalle={sinDelivery ? 'No hay delivery por ahora' : 'Según la zona'}
+                deshabilitada={sinDelivery}
               />
             </View>
 
@@ -385,19 +394,22 @@ function Opcion({
   icono,
   titulo,
   detalle,
+  deshabilitada,
 }: {
   seleccionada: boolean;
   onPress: () => void;
   icono: keyof typeof Ionicons.glyphMap;
   titulo: string;
   detalle: string;
+  deshabilitada?: boolean;
 }) {
   return (
     <Pressable
       accessibilityRole="radio"
-      accessibilityState={{ selected: seleccionada }}
+      accessibilityState={{ selected: seleccionada, disabled: deshabilitada }}
+      disabled={deshabilitada}
       onPress={onPress}
-      style={[styles.opcion, seleccionada && styles.opcionSeleccionada]}
+      style={[styles.opcion, seleccionada && styles.opcionSeleccionada, deshabilitada && styles.opcionDeshabilitada]}
     >
       <Ionicons name={icono} size={22} color={seleccionada ? colors.acento : colors.textSecondary} />
       <Text style={styles.opcionTitulo}>{titulo}</Text>
@@ -474,6 +486,7 @@ const styles = StyleSheet.create({
     backgroundColor: colors.background,
   },
   opcionSeleccionada: { borderColor: colors.acento, backgroundColor: acentoAlpha(0.08) },
+  opcionDeshabilitada: { opacity: 0.5 },
   opcionTitulo: { color: colors.textPrimary, fontSize: 14, fontWeight: '600' },
   opcionDetalle: { color: colors.textMuted, fontSize: 12 },
 
