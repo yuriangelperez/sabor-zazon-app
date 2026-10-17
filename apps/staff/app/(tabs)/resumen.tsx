@@ -1,21 +1,70 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { ActivityIndicator, RefreshControl, ScrollView, StyleSheet, View } from 'react-native';
+import { ActivityIndicator, Pressable, RefreshControl, ScrollView, StyleSheet, View } from 'react-native';
+import { Ionicons } from '@expo/vector-icons';
 import type { EstadoPedido, Pedido } from '@sabor/types';
-import { getPedidosDesde, mensajeError, suscribirPedidos } from '@sabor/api-client';
+import { getPedidosEntre, mensajeError, suscribirPedidos } from '@sabor/api-client';
 import { Chip, colors, radii, spacing, Text } from '@sabor/ui';
 import { ETIQUETA_ESTADO, formatPrice } from '@sabor/utils';
 
 import { TarjetaPedido } from '../../components/TarjetaPedido';
+import { SelectorFecha, type ModoSelectorFecha, type RangoFechas } from '../../components/SelectorFecha';
 
-function inicioDelDia() {
-  const d = new Date();
-  d.setHours(0, 0, 0, 0);
-  return d;
-}
+type FiltroModo = 'dia' | 'semana' | 'mes' | 'rango';
 
 const ANULADOS: EstadoPedido[] = ['cancelado', 'rechazado'];
 
-// Resumen de pedidos del día (todos los estados) con totales.
+// Abreviaturas de día y mes para las etiquetas de período.
+const DIAS_CORTOS = ['dom', 'lun', 'mar', 'mié', 'jue', 'vie', 'sáb'];
+const MESES_CORTOS = ['ene', 'feb', 'mar', 'abr', 'may', 'jun', 'jul', 'ago', 'sep', 'oct', 'nov', 'dic'];
+const MESES_LARGOS = [
+  'enero', 'febrero', 'marzo', 'abril', 'mayo', 'junio',
+  'julio', 'agosto', 'septiembre', 'octubre', 'noviembre', 'diciembre',
+];
+
+// El día a 00:00 (sin tocar la fecha original).
+function inicioDelDia(d: Date): Date {
+  const copia = new Date(d);
+  copia.setHours(0, 0, 0, 0);
+  return copia;
+}
+
+// El día siguiente a 00:00 (límite superior exclusivo del día).
+function finDelDia(d: Date): Date {
+  const copia = inicioDelDia(d);
+  copia.setDate(copia.getDate() + 1);
+  return copia;
+}
+
+function rangoDia(ref: Date): RangoFechas {
+  return { desde: inicioDelDia(ref), hasta: finDelDia(ref) };
+}
+
+// Lunes a domingo (límite superior exclusivo). Base en (getDay()+6)%7 para
+// que el lunes quede en el índice 0.
+function rangoSemana(ref: Date): RangoFechas {
+  const base = inicioDelDia(ref);
+  const offset = (base.getDay() + 6) % 7;
+  const desde = new Date(base);
+  desde.setDate(base.getDate() - offset);
+  const hasta = new Date(desde);
+  hasta.setDate(desde.getDate() + 7);
+  return { desde, hasta };
+}
+
+// Primer día del mes a 00:00 .. primer día del mes siguiente a 00:00.
+function rangoMes(anio: number, mes: number): RangoFechas {
+  return { desde: new Date(anio, mes, 1), hasta: new Date(anio, mes + 1, 1) };
+}
+
+const MODOS: { id: FiltroModo; label: string }[] = [
+  { id: 'dia', label: 'Día' },
+  { id: 'semana', label: 'Semana' },
+  { id: 'mes', label: 'Mes' },
+  { id: 'rango', label: 'Rango' },
+];
+
+// Resumen de pedidos con filtros (día/semana/mes/rango) y métricas dinámicas.
+// Muestra TODOS los pedidos del período elegido (no solo los de hoy).
 export default function Resumen() {
   const [pedidos, setPedidos] = useState<Pedido[]>([]);
   const [cargando, setCargando] = useState(true);
@@ -23,17 +72,46 @@ export default function Resumen() {
   const [error, setError] = useState<string | null>(null);
   const [filtro, setFiltro] = useState<EstadoPedido | null>(null);
 
+  // Modo de filtro y fechas asociadas. Por defecto "día = hoy".
+  const [filtroModo, setFiltroModo] = useState<FiltroModo>('dia');
+  const [fechaDia, setFechaDia] = useState<Date>(() => new Date());
+  const [semanaRef, setSemanaRef] = useState<Date>(() => new Date());
+  const [mesValor, setMesValor] = useState<{ anio: number; mes: number }>(() => {
+    const ahora = new Date();
+    return { anio: ahora.getFullYear(), mes: ahora.getMonth() };
+  });
+  const [rango, setRango] = useState<RangoFechas>(() => {
+    const hoy = inicioDelDia(new Date());
+    return { desde: hoy, hasta: finDelDia(hoy) };
+  });
+  const [selectorAbierto, setSelectorAbierto] = useState(false);
+
+  // Rango activo según el modo y las fechas elegidas.
+  const rangoActivo = useMemo<RangoFechas>(() => {
+    switch (filtroModo) {
+      case 'dia':
+        return rangoDia(fechaDia);
+      case 'semana':
+        return rangoSemana(semanaRef);
+      case 'mes':
+        return rangoMes(mesValor.anio, mesValor.mes);
+      case 'rango':
+        return rango;
+    }
+  }, [filtroModo, fechaDia, semanaRef, mesValor, rango]);
+
   const cargar = useCallback(async () => {
     try {
-      setPedidos(await getPedidosDesde(inicioDelDia()));
+      setPedidos(await getPedidosEntre(rangoActivo.desde, rangoActivo.hasta));
       setError(null);
     } catch (err) {
       setError(mensajeError(err));
     } finally {
       setCargando(false);
     }
-  }, []);
+  }, [rangoActivo]);
 
+  // Recarga al cambiar el rango y escucha pedidos en tiempo real.
   useEffect(() => {
     void cargar();
     return suscribirPedidos(() => void cargar());
@@ -52,6 +130,84 @@ export default function Resumen() {
       retiro: validos.filter((p) => p.metodoEntrega === 'retiro_local').length,
     };
   }, [pedidos]);
+
+  // Etiqueta del período activo para el botón que abre el calendario.
+  const etiquetaPeriodo = useMemo(() => {
+    switch (filtroModo) {
+      case 'dia': {
+        const d = fechaDia;
+        const esHoy = inicioDelDia(d).getTime() === inicioDelDia(new Date()).getTime();
+        return esHoy
+          ? `Hoy · ${DIAS_CORTOS[d.getDay()]} ${d.getDate()} ${MESES_CORTOS[d.getMonth()]}`
+          : `${DIAS_CORTOS[d.getDay()]} ${d.getDate()} ${MESES_CORTOS[d.getMonth()]} ${d.getFullYear()}`;
+      }
+      case 'semana': {
+        const fin = new Date(rangoActivo.hasta);
+        fin.setDate(fin.getDate() - 1);
+        return `Semana del ${rangoActivo.desde.getDate()} ${MESES_CORTOS[rangoActivo.desde.getMonth()]} al ${fin.getDate()} ${MESES_CORTOS[fin.getMonth()]}`;
+      }
+      case 'mes':
+        return `${MESES_LARGOS[mesValor.mes]} ${mesValor.anio}`;
+      case 'rango': {
+        const fin = new Date(rango.hasta);
+        fin.setDate(fin.getDate() - 1);
+        const mismoMes =
+          rango.desde.getMonth() === fin.getMonth() && rango.desde.getFullYear() === fin.getFullYear();
+        return mismoMes
+          ? `${rango.desde.getDate()} – ${fin.getDate()} ${MESES_CORTOS[fin.getMonth()]}`
+          : `${rango.desde.getDate()} ${MESES_CORTOS[rango.desde.getMonth()]} – ${fin.getDate()} ${MESES_CORTOS[fin.getMonth()]}`;
+      }
+    }
+  }, [filtroModo, fechaDia, rangoActivo, mesValor, rango]);
+
+  const etiquetaVenta = useMemo(() => {
+    switch (filtroModo) {
+      case 'dia':
+        return 'Vendido en el día';
+      case 'semana':
+        return 'Vendido en la semana';
+      case 'mes':
+        return 'Vendido en el mes';
+      case 'rango':
+        return 'Vendido en el rango';
+    }
+  }, [filtroModo]);
+
+  // El selector abre en el modo del filtro. Semana usa 'simple' (se elige un
+  // día y se toma toda su semana).
+  const modoSelector: ModoSelectorFecha = filtroModo === 'mes' ? 'mes' : filtroModo === 'rango' ? 'rango' : 'simple';
+
+  // Valor inicial del selector según el filtro activo.
+  const valorInicialSelector = useMemo<RangoFechas | null>(() => {
+    switch (filtroModo) {
+      case 'dia':
+        return rangoDia(fechaDia);
+      case 'semana':
+        return rangoDia(semanaRef); // abre en el día de referencia, no en el lunes
+      case 'mes':
+        return rangoMes(mesValor.anio, mesValor.mes);
+      case 'rango':
+        return rango;
+    }
+  }, [filtroModo, fechaDia, semanaRef, mesValor, rango]);
+
+  const confirmarFecha = (nuevoRango: RangoFechas) => {
+    switch (filtroModo) {
+      case 'dia':
+        setFechaDia(nuevoRango.desde);
+        break;
+      case 'semana':
+        setSemanaRef(nuevoRango.desde);
+        break;
+      case 'mes':
+        setMesValor({ anio: nuevoRango.desde.getFullYear(), mes: nuevoRango.desde.getMonth() });
+        break;
+      case 'rango':
+        setRango(nuevoRango);
+        break;
+    }
+    setSelectorAbierto(false);
+  };
 
   const visibles = filtro ? pedidos.filter((p) => p.estado === filtro) : pedidos;
 
@@ -75,8 +231,27 @@ export default function Resumen() {
     >
       {error ? <Text style={styles.error}>{error}</Text> : null}
 
+      <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.modos}>
+        {MODOS.map((m) => (
+          <Chip key={m.id} label={m.label} selected={filtroModo === m.id} onPress={() => setFiltroModo(m.id)} />
+        ))}
+      </ScrollView>
+
+      <Pressable
+        onPress={() => setSelectorAbierto(true)}
+        accessibilityRole="button"
+        accessibilityLabel={`Período: ${etiquetaPeriodo}`}
+        style={styles.periodo}
+      >
+        <Ionicons name="calendar-outline" size={18} color={colors.acento} />
+        <Text style={styles.periodoTexto} numberOfLines={1}>
+          {etiquetaPeriodo}
+        </Text>
+        <Ionicons name="chevron-down" size={16} color={colors.textSecondary} />
+      </Pressable>
+
       <View style={styles.metricas}>
-        <Metrica titulo="Vendido hoy" valor={formatPrice(stats.ventas)} destacada />
+        <Metrica titulo={etiquetaVenta} valor={formatPrice(stats.ventas)} destacada />
         <Metrica titulo="Pedidos" valor={String(stats.cantidad)} />
         <Metrica titulo="Ticket promedio" valor={formatPrice(stats.ticket)} />
         <Metrica titulo="Entregados" valor={String(stats.entregados)} />
@@ -89,13 +264,18 @@ export default function Resumen() {
         {(Object.keys(ETIQUETA_ESTADO) as EstadoPedido[]).map((e) => {
           const n = pedidos.filter((p) => p.estado === e).length;
           return n > 0 ? (
-            <Chip key={e} label={`${ETIQUETA_ESTADO[e]} (${n})`} selected={filtro === e} onPress={() => setFiltro(filtro === e ? null : e)} />
+            <Chip
+              key={e}
+              label={`${ETIQUETA_ESTADO[e]} (${n})`}
+              selected={filtro === e}
+              onPress={() => setFiltro(filtro === e ? null : e)}
+            />
           ) : null;
         })}
       </ScrollView>
 
       {visibles.length === 0 ? (
-        <Text style={styles.vacio}>Todavía no hay pedidos hoy.</Text>
+        <Text style={styles.vacio}>No hay pedidos en este período.</Text>
       ) : (
         visibles.map((p) => (
           <View key={p.id} style={{ gap: 4 }}>
@@ -104,6 +284,15 @@ export default function Resumen() {
           </View>
         ))
       )}
+
+      <SelectorFecha
+        titulo="Elegí el período"
+        modo={modoSelector}
+        visible={selectorAbierto}
+        onClose={() => setSelectorAbierto(false)}
+        onConfirm={confirmarFecha}
+        valorInicial={valorInicialSelector}
+      />
     </ScrollView>
   );
 }
@@ -121,6 +310,19 @@ const styles = StyleSheet.create({
   pantalla: { flex: 1, backgroundColor: colors.background },
   contenido: { padding: spacing.md, gap: spacing.md, paddingBottom: spacing.xl, width: '100%', maxWidth: 900, alignSelf: 'center' },
   error: { color: colors.danger, textAlign: 'center' },
+  modos: { gap: spacing.sm },
+  periodo: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.sm,
+    paddingHorizontal: spacing.md,
+    paddingVertical: 12,
+    borderRadius: radii.md,
+    borderWidth: 1,
+    borderColor: colors.border,
+    backgroundColor: colors.surface,
+  },
+  periodoTexto: { flex: 1, color: colors.textPrimary, fontSize: 15, fontWeight: '600' },
   metricas: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.sm },
   metrica: {
     flexGrow: 1,

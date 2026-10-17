@@ -38,16 +38,37 @@ export function TarjetaPedido({ pedido }: { pedido: Pedido }) {
   const cambiarEstado = usePedidosEnVivoStore((s) => s.cambiarEstado);
   const [abierta, setAbierta] = useState(pedido.estado === 'por_aceptar');
   const [confirmarRechazo, setConfirmarRechazo] = useState(false);
+  // Paso de la doble confirmación de la acción principal:
+  // 0 = sin confirmar (se ve el botón), 1 = primer "Sí", 2 = segundo "Sí".
+  // Solo aplica a "listo" y "entregado"; "Aceptar" es un toque simple.
+  const [pasoAccion, setPasoAccion] = useState<0 | 1 | 2>(0);
 
   const cantidadProductos = pedido.items.reduce((acc, i) => acc + i.cantidad, 0);
   const minutos = (Date.now() - new Date(pedido.creadoEn).getTime()) / 60_000;
   const demorado = pedido.estado === 'por_aceptar' && minutos >= DEMORA_ALERTA_MIN;
   const accion = accionPrincipal(pedido);
   const esDelivery = pedido.metodoEntrega === 'delivery';
+  const esAccionDoble = accion?.estado === 'listo' || accion?.estado === 'entregado';
+
+  // Mensaje del primer paso de la doble confirmación, según la acción.
+  const mensajePaso1 =
+    accion?.estado === 'listo'
+      ? '¿Confirmar que el pedido está listo?'
+      : accion?.estado === 'entregado' && pedido.metodoEntrega === 'retiro_local'
+        ? '¿Confirmar que el pedido fue retirado?'
+        : '¿Confirmar que el pedido fue entregado?';
+  const mensajePaso2 = '¿Estás seguro? Esta acción avisa al cliente y no se puede deshacer.';
+
+  // Expandir/colapsar: al colapsar se cancela la confirmación en curso para
+  // que no quede estado obsoleto al volver a abrir la tarjeta.
+  const alternarAbierta = () => {
+    if (abierta) setPasoAccion(0);
+    setAbierta((a) => !a);
+  };
 
   return (
     <View style={[styles.tarjeta, pedido.estado === 'por_aceptar' && styles.tarjetaNueva, demorado && styles.tarjetaDemorada]}>
-      <Pressable onPress={() => setAbierta((a) => !a)} accessibilityRole="button" accessibilityLabel={`Pedido ${numeroPedido(pedido.numero)}`}>
+      <Pressable onPress={alternarAbierta} accessibilityRole="button" accessibilityLabel={`Pedido ${numeroPedido(pedido.numero)}`}>
         <View style={styles.fila}>
           <Text style={styles.numero}>{numeroPedido(pedido.numero)}</Text>
           <View style={[styles.badge, esDelivery ? styles.badgeDelivery : styles.badgeRetiro]}>
@@ -140,7 +161,7 @@ export function TarjetaPedido({ pedido }: { pedido: Pedido }) {
                 </View>
               </View>
             ) : (
-              <Pressable onPress={() => setConfirmarRechazo(true)} style={styles.rechazar} hitSlop={6}>
+              <Pressable onPress={() => { setConfirmarRechazo(true); setPasoAccion(0); }} style={styles.rechazar} hitSlop={6}>
                 <Text style={styles.rechazarTexto}>Rechazar pedido</Text>
               </Pressable>
             )
@@ -149,7 +170,33 @@ export function TarjetaPedido({ pedido }: { pedido: Pedido }) {
       ) : null}
 
       {accion && !confirmarRechazo ? (
-        <Button label={accion.label} onPress={() => void cambiarEstado(pedido.id, accion.estado)} style={styles.botonPrincipal} />
+        esAccionDoble && pasoAccion > 0 ? (
+          <View style={styles.confirmar}>
+            <Text style={styles.confirmarTexto}>{pasoAccion === 1 ? mensajePaso1 : mensajePaso2}</Text>
+            <View style={styles.acciones}>
+              <Button label="No" variante="contorno" onPress={() => setPasoAccion(0)} style={styles.accion} />
+              <Button
+                label={pasoAccion === 1 ? 'Sí, continuar' : 'Sí, confirmar'}
+                variante="primario"
+                onPress={() => {
+                  if (pasoAccion === 1) {
+                    setPasoAccion(2);
+                  } else {
+                    setPasoAccion(0);
+                    void cambiarEstado(pedido.id, accion.estado);
+                  }
+                }}
+                style={styles.accion}
+              />
+            </View>
+          </View>
+        ) : (
+          <Button
+            label={accion.label}
+            onPress={() => (esAccionDoble ? setPasoAccion(1) : void cambiarEstado(pedido.id, accion.estado))}
+            style={styles.botonPrincipal}
+          />
+        )
       ) : null}
     </View>
   );

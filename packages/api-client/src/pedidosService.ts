@@ -80,6 +80,23 @@ export async function getPedidosDesde(desde: Date): Promise<Pedido[]> {
   return (data as PedidoRow[]).map(pedidoDesdeRow);
 }
 
+// Resumen de pedidos: todos los estados entre dos fechas (el límite superior
+// es exclusivo). Para los filtros por día/semana/mes/rango del resumen de
+// ventas, que acota la consulta en el servidor en vez de traer todo el
+// historial y filtrarlo en la app.
+export async function getPedidosEntre(desde: Date, hasta: Date): Promise<Pedido[]> {
+  asegurarConfiguracion();
+  const { data, error } = await supabase
+    .from('pedidos')
+    .select(COLUMNAS_PEDIDO)
+    .gte('creado_en', desde.toISOString())
+    .lt('creado_en', hasta.toISOString())
+    .in('pago_estado', PAGOS_VISIBLES)
+    .order('creado_en', { ascending: false });
+  if (error) throw error;
+  return (data as PedidoRow[]).map(pedidoDesdeRow);
+}
+
 // RF-11: aceptar, marcar listo, entregado/retirado, rechazar.
 export async function cambiarEstadoPedido(id: string, estado: EstadoPedido): Promise<void> {
   asegurarConfiguracion();
