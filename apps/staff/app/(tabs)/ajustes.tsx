@@ -6,7 +6,7 @@ import { Button, colors, radii, Selector, spacing, Text, TextInput } from '@sabo
 import { describirMomento, estaAbierto, HORAS_DEL_DIA, pausaVigente } from '@sabor/utils';
 
 import { ZonasEnvioPanel } from '../../components/ZonasEnvioPanel';
-import { activarAvisos, useAvisosStore } from '../../services/notificaciones';
+import { activarAvisos, pedirPermisoEscritorio, useAvisosStore } from '../../services/notificaciones';
 import { useSesionStore } from '../../stores/useSesionStore';
 
 // RF-13 (cerrar tienda), zonas y costos de envío, avisos y cuenta. Los ingredientes agotados están en Menú.
@@ -145,7 +145,21 @@ export default function Ajustes() {
         <ZonasEnvioPanel />
       </Seccion>
 
-      {Platform.OS !== 'web' ? (
+      {Platform.OS === 'web' ? (
+        <Seccion titulo="Avisos de escritorio">
+          <View style={[styles.estado, avisos.estado === 'activos' ? styles.estadoActivo : styles.estadoPausado]}>
+            <Text style={styles.estadoTexto}>
+              {avisos.estado === 'activos'
+                ? 'Activados: cada pedido nuevo avisa con sonido y notificación, aunque estés en otra ventana. Dejá esta pestaña abierta.'
+                : 'Los pedidos nuevos no avisan fuera de esta pestaña.'}
+            </Text>
+          </View>
+          {avisos.detalle ? <Text style={styles.ayuda}>{avisos.detalle}</Text> : null}
+          {avisos.estado === 'sin_permiso' ? (
+            <Button label="Activar notificaciones" variante="contorno" onPress={() => void pedirPermisoEscritorio()} />
+          ) : null}
+        </Seccion>
+      ) : (
         <Seccion titulo="Avisos de pedidos">
           <View style={[styles.estado, avisos.estado === 'activos' ? styles.estadoActivo : styles.estadoPausado]}>
             <Text style={styles.estadoTexto}>
@@ -163,7 +177,7 @@ export default function Ajustes() {
             <Button label="Reintentar" variante="contorno" onPress={() => void activarAvisos()} />
           ) : null}
         </Seccion>
-      ) : null}
+      )}
 
       <Seccion titulo="Cuenta">
         <Text style={styles.cuenta}>{perfil?.nombre ?? perfil?.email}</Text>

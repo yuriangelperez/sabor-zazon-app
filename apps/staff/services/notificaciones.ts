@@ -7,6 +7,7 @@ import * as Device from 'expo-device';
 import * as Notifications from 'expo-notifications';
 import { create } from 'zustand';
 import { mensajeError, quitarDispositivo, registrarDispositivo } from '@sabor/api-client';
+import { numeroPedido } from '@sabor/utils';
 
 // Push de "nuevo pedido" (RNF-02): llega aunque la app esté cerrada o el
 // celular bloqueado. Lo manda la base de datos al entrar cada pedido
@@ -40,10 +41,67 @@ function noDisponible(detalle: string) {
   useAvisosStore.setState({ estado: 'no_disponible', detalle });
 }
 
+// Escritorio (web): notificación del sistema con el navegador abierto, aunque
+// la pestaña esté en segundo plano o la ventana no tenga el foco. Solo funciona
+// mientras la pestaña siga abierta; no hay push con el navegador cerrado.
+// El tsconfig de la app no incluye los tipos del navegador.
+interface NotificacionWeb {
+  onclick: (() => void) | null;
+  close: () => void;
+}
+interface NotificacionesWeb {
+  new (titulo: string, opciones: Record<string, unknown>): NotificacionWeb;
+  permission: 'default' | 'granted' | 'denied';
+  requestPermission: () => Promise<string>;
+}
+const webGlobal = globalThis as unknown as {
+  Notification?: NotificacionesWeb;
+  document?: { hasFocus: () => boolean };
+  window?: { focus: () => void };
+};
+const notificacionWeb = () => (Platform.OS === 'web' ? webGlobal.Notification : undefined);
+
+function estadoWeb() {
+  const N = notificacionWeb();
+  if (!N) return noDisponible('Este navegador no admite notificaciones de escritorio.');
+  if (N.permission === 'granted') useAvisosStore.setState({ estado: 'activos', detalle: null });
+  else if (N.permission === 'denied') {
+    useAvisosStore.setState({ estado: 'sin_permiso', detalle: 'Permití las notificaciones de este sitio en el candado de la barra de direcciones.' });
+  } else useAvisosStore.setState({ estado: 'sin_permiso', detalle: 'Pulsá el botón para permitir las notificaciones.' });
+}
+
+// Hay que llamarla desde un toque/clic: los navegadores ignoran el pedido si no.
+export async function pedirPermisoEscritorio(): Promise<void> {
+  await notificacionWeb()?.requestPermission();
+  estadoWeb();
+}
+
+export function avisarEnEscritorio(numero: number) {
+  const N = notificacionWeb();
+  if (!N || N.permission !== 'granted') return;
+  // Con la ventana en primer plano ya se ve el aviso propio de la app.
+  if (webGlobal.document?.hasFocus()) return;
+  try {
+    const aviso = new N(`¡Nuevo pedido ${numeroPedido(numero)}!`, {
+      body: 'Tocá para abrir los pedidos.',
+      icon: '/favicon.png',
+      tag: `pedido-${numero}`,
+      requireInteraction: true,
+      silent: false,
+    });
+    aviso.onclick = () => {
+      webGlobal.window?.focus();
+      aviso.close();
+    };
+  } catch {
+    // Algunos navegadores solo permiten notificaciones desde un service worker.
+  }
+}
+
 // Pide permiso, obtiene el token del celular y lo registra en Supabase.
 // Se llama al entrar a la app con sesión de recepción.
 export async function activarAvisos(): Promise<void> {
-  if (Platform.OS === 'web') return noDisponible('En la web no hay notificaciones: usá la app instalada.');
+  if (Platform.OS === 'web') return estadoWeb();
   if (!Device.isDevice) return noDisponible('Las notificaciones solo funcionan en un celular real.');
   if (Constants.executionEnvironment === ExecutionEnvironment.StoreClient) {
     return noDisponible('Expo Go no recibe notificaciones: instalá el APK de recepción.');
