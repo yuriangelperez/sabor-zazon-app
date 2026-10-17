@@ -1,9 +1,9 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
-import { ActivityIndicator, Pressable, RefreshControl, ScrollView, StyleSheet, View } from 'react-native';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { ActivityIndicator, FlatList, Pressable, RefreshControl, ScrollView, StyleSheet, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import type { EstadoPedido, Pedido } from '@sabor/types';
-import { getPedidosEntre, mensajeError, suscribirPedidos } from '@sabor/api-client';
-import { Chip, colors, radii, spacing, Text } from '@sabor/ui';
+import { getPedidosEntre, LIMITE_PEDIDOS_RANGO, mensajeError, suscribirPedidos } from '@sabor/api-client';
+import { acentoAlpha, Chip, colors, radii, spacing, Text } from '@sabor/ui';
 import { ETIQUETA_ESTADO, formatPrice } from '@sabor/utils';
 
 import { TarjetaPedido } from '../../components/TarjetaPedido';
@@ -100,14 +100,23 @@ export default function Resumen() {
     }
   }, [filtroModo, fechaDia, semanaRef, mesValor, rango]);
 
+  // Contador de generación: al cambiar de filtro rápido pueden quedar varios
+  // fetchs en vuelo; descarta las resoluciones stale para que un rango viejo
+  // no pise los datos del rango nuevo bajo la etiqueta nueva.
+  const generacionRef = useRef(0);
+
   const cargar = useCallback(async () => {
+    const gen = ++generacionRef.current;
     try {
-      setPedidos(await getPedidosEntre(rangoActivo.desde, rangoActivo.hasta));
+      const resultado = await getPedidosEntre(rangoActivo.desde, rangoActivo.hasta);
+      if (gen !== generacionRef.current) return; // resolución stale: se descarta
+      setPedidos(resultado);
       setError(null);
     } catch (err) {
+      if (gen !== generacionRef.current) return;
       setError(mensajeError(err));
     } finally {
-      setCargando(false);
+      if (gen === generacionRef.current) setCargando(false);
     }
   }, [rangoActivo]);
 
@@ -210,80 +219,95 @@ export default function Resumen() {
   };
 
   const visibles = filtro ? pedidos.filter((p) => p.estado === filtro) : pedidos;
+  // Si la respuesta llegó al tope de filas, el período puede estar truncado y
+  // las métricas podrían subcontar; se avisa al staff para que acorte el rango.
+  const truncado = pedidos.length >= LIMITE_PEDIDOS_RANGO;
 
   if (cargando) return <ActivityIndicator color={colors.acento} style={{ marginTop: spacing.xl }} />;
 
   return (
-    <ScrollView
-      style={styles.pantalla}
-      contentContainerStyle={styles.contenido}
-      refreshControl={
-        <RefreshControl
-          refreshing={refrescando}
-          tintColor={colors.acento}
-          onRefresh={async () => {
-            setRefrescando(true);
-            await cargar();
-            setRefrescando(false);
-          }}
-        />
-      }
-    >
-      {error ? <Text style={styles.error}>{error}</Text> : null}
-
-      <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.modos}>
-        {MODOS.map((m) => (
-          <Chip key={m.id} label={m.label} selected={filtroModo === m.id} onPress={() => setFiltroModo(m.id)} />
-        ))}
-      </ScrollView>
-
-      <Pressable
-        onPress={() => setSelectorAbierto(true)}
-        accessibilityRole="button"
-        accessibilityLabel={`Período: ${etiquetaPeriodo}`}
-        style={styles.periodo}
-      >
-        <Ionicons name="calendar-outline" size={18} color={colors.acento} />
-        <Text style={styles.periodoTexto} numberOfLines={1}>
-          {etiquetaPeriodo}
-        </Text>
-        <Ionicons name="chevron-down" size={16} color={colors.textSecondary} />
-      </Pressable>
-
-      <View style={styles.metricas}>
-        <Metrica titulo={etiquetaVenta} valor={formatPrice(stats.ventas)} destacada />
-        <Metrica titulo="Pedidos" valor={String(stats.cantidad)} />
-        <Metrica titulo="Ticket promedio" valor={formatPrice(stats.ticket)} />
-        <Metrica titulo="Entregados" valor={String(stats.entregados)} />
-        <Metrica titulo="Delivery / Retiro" valor={`${stats.delivery} / ${stats.retiro}`} />
-        <Metrica titulo="Cancelados" valor={String(stats.anulados)} />
-      </View>
-
-      <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.chips}>
-        <Chip label={`Todos (${pedidos.length})`} selected={filtro === null} onPress={() => setFiltro(null)} />
-        {(Object.keys(ETIQUETA_ESTADO) as EstadoPedido[]).map((e) => {
-          const n = pedidos.filter((p) => p.estado === e).length;
-          return n > 0 ? (
-            <Chip
-              key={e}
-              label={`${ETIQUETA_ESTADO[e]} (${n})`}
-              selected={filtro === e}
-              onPress={() => setFiltro(filtro === e ? null : e)}
-            />
-          ) : null;
-        })}
-      </ScrollView>
-
-      {visibles.length === 0 ? (
-        <Text style={styles.vacio}>No hay pedidos en este período.</Text>
-      ) : (
-        visibles.map((p) => (
-          <View key={p.id} style={{ gap: 4 }}>
+    <>
+      <FlatList
+        style={styles.pantalla}
+        contentContainerStyle={styles.contenido}
+        data={visibles}
+        keyExtractor={(p) => p.id}
+        renderItem={({ item: p }) => (
+          <View style={styles.item}>
             <Text style={styles.estado}>{ETIQUETA_ESTADO[p.estado]}</Text>
             <TarjetaPedido pedido={p} />
           </View>
-        ))
-      )}
+        )}
+        ListHeaderComponent={
+          <View style={styles.cabezal}>
+            {error ? <Text style={styles.error}>{error}</Text> : null}
+            {truncado ? (
+              <View style={styles.aviso}>
+                <Ionicons name="alert-circle" size={16} color={colors.warning} />
+                <Text style={styles.avisoTexto}>
+                  Período truncado: llegamos al tope de pedidos ({LIMITE_PEDIDOS_RANGO}). Las métricas pueden
+                  estar incompletas; acortá el rango para ver todo.
+                </Text>
+              </View>
+            ) : null}
+
+            <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.modos}>
+              {MODOS.map((m) => (
+                <Chip key={m.id} label={m.label} selected={filtroModo === m.id} onPress={() => setFiltroModo(m.id)} />
+              ))}
+            </ScrollView>
+
+            <Pressable
+              onPress={() => setSelectorAbierto(true)}
+              accessibilityRole="button"
+              accessibilityLabel={`Período: ${etiquetaPeriodo}`}
+              style={styles.periodo}
+            >
+              <Ionicons name="calendar-outline" size={18} color={colors.acento} />
+              <Text style={styles.periodoTexto} numberOfLines={1}>
+                {etiquetaPeriodo}
+              </Text>
+              <Ionicons name="chevron-down" size={16} color={colors.textSecondary} />
+            </Pressable>
+
+            <View style={styles.metricas}>
+              <Metrica titulo={etiquetaVenta} valor={formatPrice(stats.ventas)} destacada />
+              <Metrica titulo="Pedidos" valor={String(stats.cantidad)} />
+              <Metrica titulo="Ticket promedio" valor={formatPrice(stats.ticket)} />
+              <Metrica titulo="Entregados" valor={String(stats.entregados)} />
+              <Metrica titulo="Delivery / Retiro" valor={`${stats.delivery} / ${stats.retiro}`} />
+              <Metrica titulo="Cancelados" valor={String(stats.anulados)} />
+            </View>
+
+            <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.chips}>
+              <Chip label={`Todos (${pedidos.length})`} selected={filtro === null} onPress={() => setFiltro(null)} />
+              {(Object.keys(ETIQUETA_ESTADO) as EstadoPedido[]).map((e) => {
+                const n = pedidos.filter((p) => p.estado === e).length;
+                return n > 0 ? (
+                  <Chip
+                    key={e}
+                    label={`${ETIQUETA_ESTADO[e]} (${n})`}
+                    selected={filtro === e}
+                    onPress={() => setFiltro(filtro === e ? null : e)}
+                  />
+                ) : null;
+              })}
+            </ScrollView>
+          </View>
+        }
+        ListEmptyComponent={<Text style={styles.vacio}>No hay pedidos en este período.</Text>}
+        refreshControl={
+          <RefreshControl
+            refreshing={refrescando}
+            tintColor={colors.acento}
+            onRefresh={async () => {
+              setRefrescando(true);
+              await cargar();
+              setRefrescando(false);
+            }}
+          />
+        }
+      />
 
       <SelectorFecha
         titulo="Elegí el período"
@@ -292,8 +316,9 @@ export default function Resumen() {
         onClose={() => setSelectorAbierto(false)}
         onConfirm={confirmarFecha}
         valorInicial={valorInicialSelector}
+        ayuda={filtroModo === 'semana' ? 'Elegí un día; se usa toda su semana (lun–dom).' : undefined}
       />
-    </ScrollView>
+    </>
   );
 }
 
@@ -308,8 +333,21 @@ function Metrica({ titulo, valor, destacada }: { titulo: string; valor: string; 
 
 const styles = StyleSheet.create({
   pantalla: { flex: 1, backgroundColor: colors.background },
-  contenido: { padding: spacing.md, gap: spacing.md, paddingBottom: spacing.xl, width: '100%', maxWidth: 900, alignSelf: 'center' },
+  contenido: { padding: spacing.md, paddingBottom: spacing.xl, width: '100%', maxWidth: 900, alignSelf: 'center' },
+  cabezal: { gap: spacing.md, marginBottom: spacing.md },
+  item: { gap: 4, marginBottom: spacing.md },
   error: { color: colors.danger, textAlign: 'center' },
+  aviso: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: spacing.sm,
+    padding: spacing.sm,
+    borderRadius: radii.sm,
+    backgroundColor: acentoAlpha(0.1),
+    borderWidth: 1,
+    borderColor: colors.warning,
+  },
+  avisoTexto: { flex: 1, color: colors.warning, fontSize: 13, fontWeight: '600' },
   modos: { gap: spacing.sm },
   periodo: {
     flexDirection: 'row',

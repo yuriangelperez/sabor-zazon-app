@@ -20,6 +20,9 @@ interface SelectorFechaProps {
   onClose: () => void;
   onConfirm: (rango: RangoFechas) => void;
   valorInicial?: RangoFechas | null;
+  // Texto de ayuda opcional bajo el título (ej. para aclarar que el modo
+  // Semana toma toda la semana del día elegido).
+  ayuda?: string;
 }
 
 // Encabezado de días con la semana empezando en lunes (L D M M J V S).
@@ -57,7 +60,7 @@ function mismoDia(a: Date, b: Date): boolean {
 // se arma la grilla mensual a mano. `simple` elige un día; `rango` pide dos
 // toques (inicio y fin; si el fin es anterior al inicio, se reinicia el
 // inicio); `mes` navega y confirma con "Usar este mes".
-export function SelectorFecha({ titulo, modo, visible, onClose, onConfirm, valorInicial }: SelectorFechaProps) {
+export function SelectorFecha({ titulo, modo, visible, onClose, onConfirm, valorInicial, ayuda }: SelectorFechaProps) {
   const insets = useSafeAreaInsets();
   const [mesVisto, setMesVisto] = useState<{ anio: number; mes: number }>(() => {
     const ref = valorInicial?.desde ?? new Date();
@@ -180,6 +183,7 @@ export function SelectorFecha({ titulo, modo, visible, onClose, onConfirm, valor
         <Pressable style={[styles.hoja, { paddingBottom: insets.bottom + spacing.md }]} onPress={() => {}}>
           <View style={styles.agarre} />
           <Text style={styles.titulo}>{titulo}</Text>
+          {ayuda ? <Text style={styles.ayudaSuperior}>{ayuda}</Text> : null}
 
           <View style={styles.nav}>
             <Pressable onPress={() => navegarMes(-1)} hitSlop={8} accessibilityRole="button" accessibilityLabel="Mes anterior">
@@ -263,6 +267,7 @@ const styles = StyleSheet.create({
     marginBottom: spacing.sm,
   },
   titulo: { color: colors.textPrimary, fontSize: 17, fontWeight: '700', marginBottom: spacing.sm },
+  ayudaSuperior: { color: colors.textSecondary, fontSize: 13, marginBottom: spacing.sm },
   nav: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: spacing.sm },
   mesAnio: { color: colors.textPrimary, fontSize: 16, fontWeight: '600' },
   encabezadoDias: { flexDirection: 'row', marginBottom: spacing.xs },

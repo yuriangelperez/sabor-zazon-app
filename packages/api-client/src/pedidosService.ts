@@ -80,6 +80,13 @@ export async function getPedidosDesde(desde: Date): Promise<Pedido[]> {
   return (data as PedidoRow[]).map(pedidoDesdeRow);
 }
 
+// Tope explícito de filas para las consultas por rango del resumen. Alto para
+// no cortar el uso normal (un mes cargado entra holgado), pero acota la
+// consulta y permite detectar truncado: si la respuesta llega a este número,
+// el resumen avisa que el período puede estar incompleto y las métricas
+// podrían subcontar. Así no dependemos de un tope invisible del servidor.
+export const LIMITE_PEDIDOS_RANGO = 5000;
+
 // Resumen de pedidos: todos los estados entre dos fechas (el límite superior
 // es exclusivo). Para los filtros por día/semana/mes/rango del resumen de
 // ventas, que acota la consulta en el servidor en vez de traer todo el
@@ -92,7 +99,8 @@ export async function getPedidosEntre(desde: Date, hasta: Date): Promise<Pedido[
     .gte('creado_en', desde.toISOString())
     .lt('creado_en', hasta.toISOString())
     .in('pago_estado', PAGOS_VISIBLES)
-    .order('creado_en', { ascending: false });
+    .order('creado_en', { ascending: false })
+    .limit(LIMITE_PEDIDOS_RANGO);
   if (error) throw error;
   return (data as PedidoRow[]).map(pedidoDesdeRow);
 }

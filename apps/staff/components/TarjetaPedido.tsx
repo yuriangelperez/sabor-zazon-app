@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Linking, Pressable, StyleSheet, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import type { EstadoPedido, ItemPedido, Pedido } from '@sabor/types';
@@ -42,6 +42,14 @@ export function TarjetaPedido({ pedido }: { pedido: Pedido }) {
   // 0 = sin confirmar (se ve el botón), 1 = primer "Sí", 2 = segundo "Sí".
   // Solo aplica a "listo" y "entregado"; "Aceptar" es un toque simple.
   const [pasoAccion, setPasoAccion] = useState<0 | 1 | 2>(0);
+
+  // Si el estado cambia en vivo (realtime) mientras hay una confirmación en
+  // curso, se reinicia el paso: evita avanzar al estado siguiente sin querer
+  // (ej. el pedido pasó a "listo" en otro dispositivo mientras el staff
+  // confirmaba "listo", y al confirmar saltaría a "entregado").
+  useEffect(() => {
+    setPasoAccion(0);
+  }, [pedido.estado]);
 
   const cantidadProductos = pedido.items.reduce((acc, i) => acc + i.cantidad, 0);
   const minutos = (Date.now() - new Date(pedido.creadoEn).getTime()) / 60_000;
