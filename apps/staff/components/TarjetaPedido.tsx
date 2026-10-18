@@ -3,7 +3,15 @@ import { Linking, Pressable, StyleSheet, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import type { EstadoPedido, ItemPedido, Pedido } from '@sabor/types';
 import { acentoAlpha, Button, colors, radii, spacing, Text } from '@sabor/ui';
-import { ETIQUETA_PAGO, ETIQUETA_PAGO_ESTADO, formatPrice, horaCorta, numeroPedido, tiempoTranscurrido } from '@sabor/utils';
+import {
+  enlaceWhatsApp,
+  ETIQUETA_PAGO,
+  ETIQUETA_PAGO_ESTADO,
+  formatPrice,
+  horaCorta,
+  numeroPedido,
+  tiempoTranscurrido,
+} from '@sabor/utils';
 
 import { usePedidosEnVivoStore } from '../stores/usePedidosEnVivo';
 
@@ -114,7 +122,7 @@ export function TarjetaPedido({ pedido }: { pedido: Pedido }) {
             <Ionicons name="person-outline" size={16} color={colors.textSecondary} />
             <Text style={styles.clienteNombre}>{pedido.nombreCliente}</Text>
             <Pressable
-              onPress={() => Linking.openURL(`https://wa.me/${pedido.celularCliente.replace(/\D/g, '')}`)}
+              onPress={() => Linking.openURL(enlaceWhatsApp(pedido.celularCliente))}
               hitSlop={6}
             >
               <Text style={styles.enlace}>{pedido.celularCliente}</Text>
@@ -123,10 +131,19 @@ export function TarjetaPedido({ pedido }: { pedido: Pedido }) {
           {esDelivery ? (
             <View style={styles.cliente}>
               <Ionicons name="location-outline" size={16} color={colors.textSecondary} />
-              <Text style={styles.direccion}>
-                {pedido.direccionEntrega}
-                {pedido.distanciaEnvioKm != null ? ` · ${String(pedido.distanciaEnvioKm).replace('.', ',')} km` : ''}
-              </Text>
+              <View style={{ flex: 1, gap: 2 }}>
+                <Text style={styles.direccion}>
+                  {pedido.direccionEntrega}
+                  {pedido.distanciaEnvioKm != null ? ` · ${String(pedido.distanciaEnvioKm).replace('.', ',')} km` : ''}
+                </Text>
+                {/* Dónde quedó el punto: si el cliente movió el pin, puede ser otra calle. */}
+                {pedido.direccionMapa ? (
+                  <Text style={[styles.direccionMapa, pedido.ubicacionMarcada && styles.direccionMarcada]}>
+                    {pedido.ubicacionMarcada ? '📍 Marcó en el mapa: ' : 'En el mapa: '}
+                    {pedido.direccionMapa.replace(' (marcado en el mapa)', '')}
+                  </Text>
+                ) : null}
+              </View>
               {pedido.entregaUbicacion ? (
                 <Pressable
                   onPress={() =>
@@ -294,6 +311,8 @@ const styles = StyleSheet.create({
   enlace: { color: colors.whatsapp, fontSize: 14, fontWeight: '600' },
   direccion: { color: colors.textPrimary, fontSize: 14, flex: 1 },
   enlaceMapa: { color: colors.acento, fontSize: 14, fontWeight: '600' },
+  direccionMapa: { color: colors.textSecondary, fontSize: 13 },
+  direccionMarcada: { color: colors.acento, fontWeight: '600' },
 
   items: { gap: spacing.sm, marginTop: spacing.xs },
   item: { gap: 2 },

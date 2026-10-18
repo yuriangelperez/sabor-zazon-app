@@ -6,7 +6,7 @@ import { asegurarConfiguracion, ESQUEMA, supabase, supabaseConfigurado } from '.
 
 const COLUMNAS_PEDIDO = `
   id, numero, estado, nombre_cliente, celular_cliente, metodo_entrega, zona_envio_id,
-  direccion_entrega, distancia_envio_m, entrega_lat, entrega_lng, costo_envio, metodo_pago, pago_estado, subtotal, recargo, descuento, propina, total,
+  direccion_entrega, direccion_mapa, ubicacion_marcada, distancia_envio_m, entrega_lat, entrega_lng, costo_envio, metodo_pago, pago_estado, subtotal, recargo, descuento, propina, total,
   observaciones, creado_en, aceptado_en, listo_en, entregado_en, cancelado_en,
   items_pedido ( id, producto_id, nombre, cantidad, precio_unitario, opciones, acompanamientos )
 `;

@@ -140,6 +140,8 @@ export interface PedidoRow {
   metodo_entrega: Pedido['metodoEntrega'];
   zona_envio_id: string | null;
   direccion_entrega: string | null;
+  direccion_mapa: string | null;
+  ubicacion_marcada: boolean | null;
   distancia_envio_m: number | null;
   entrega_lat: number | null;
   entrega_lng: number | null;
@@ -182,6 +184,8 @@ export function pedidoDesdeRow(r: PedidoRow): Pedido {
     metodoEntrega: r.metodo_entrega,
     zonaEnvioId: r.zona_envio_id,
     direccionEntrega: r.direccion_entrega,
+    direccionMapa: r.direccion_mapa,
+    ubicacionMarcada: r.ubicacion_marcada ?? false,
     distanciaEnvioKm: r.distancia_envio_m == null ? null : Math.round(r.distancia_envio_m / 100) / 10,
     entregaUbicacion: r.entrega_lat == null || r.entrega_lng == null ? null : { lat: r.entrega_lat, lng: r.entrega_lng },
     costoEnvio: r.costo_envio,

@@ -388,6 +388,34 @@ async function distanciaPorCalle(origen: Punto, destino: Punto): Promise<number>
   return Math.round(lineaRecta(origen, destino) * FACTOR_CALLES);
 }
 
+// Qué dirección hay en un punto (el pin del mapa), para que recepción vea
+// "Formosa 1250" y no solo lo que escribió el cliente. La altura es aproximada.
+async function direccionEn(p: Punto): Promise<string | null> {
+  try {
+    if (TOMTOM_KEY) {
+      const res = await fetch(
+        `https://api.tomtom.com/search/2/reverseGeocode/${p.lat},${p.lng}.json?key=${TOMTOM_KEY}&language=es-419`,
+        { signal: AbortSignal.timeout(8000) }
+      );
+      const datos = await res.json();
+      const a = datos.addresses?.[0]?.address;
+      if (a?.streetName) {
+        const calle = [a.streetName.replace(/^Calle /, ''), a.streetNumber].filter(Boolean).join(' ');
+        return [calle, a.municipalitySubdivision ?? a.municipality].filter(Boolean).join(', ');
+      }
+    }
+    const res = await fetch(`https://photon.komoot.io/reverse?lat=${p.lat}&lon=${p.lng}&limit=1`, {
+      headers: { 'User-Agent': USER_AGENT },
+      signal: AbortSignal.timeout(8000),
+    });
+    const f = (await res.json()).features?.[0]?.properties;
+    if (f?.street) return [[f.street, f.housenumber].filter(Boolean).join(' '), f.district ?? f.city].filter(Boolean).join(', ');
+  } catch (err) {
+    console.error('No se pudo averiguar la dirección del pin', err);
+  }
+  return null;
+}
+
 // Coordenadas del local: se buscan una sola vez y quedan guardadas.
 async function ubicacionLocal(cfg: Configuracion): Promise<Punto> {
   if (cfg.local_lat != null && cfg.local_lng != null) return { lat: cfg.local_lat, lng: cfg.local_lng };
@@ -446,7 +474,7 @@ Deno.serve(async (req) => {
     const desde = new Date(Date.now() - DIAS_CACHE * 24 * 60 * 60 * 1000).toISOString();
     const { data: previa } = await db
       .from('cotizaciones_envio')
-      .select('direccion_encontrada, lat, lng, distancia_m')
+      .select('direccion_encontrada, lat, lng, distancia_m, marcada')
       .eq('clave', clave)
       .gte('creado_en', desde)
       .order('creado_en', { ascending: false })
@@ -460,8 +488,10 @@ Deno.serve(async (req) => {
       if (lineaRecta(local, pin) > (kmMaximo + 20) * 1000) {
         throw new ErrorVisible(`Ese punto queda lejos: llegamos hasta ${kmTexto(kmMaximo)} km del local.`);
       }
+      const enElPin = await direccionEn(pin);
       medida = {
-        direccion_encontrada: 'Ubicación marcada en el mapa',
+        direccion_encontrada: enElPin ? `${enElPin} (marcado en el mapa)` : 'Ubicación marcada en el mapa',
+        marcada: true,
         lat: pin.lat,
         lng: pin.lng,
         distancia_m: await distanciaPorCalle(local, pin),
@@ -481,6 +511,7 @@ Deno.serve(async (req) => {
       const destino = r.punto;
       medida = {
         direccion_encontrada: r.direccion,
+        marcada: false,
         lat: destino.lat,
         lng: destino.lng,
         distancia_m: await distanciaPorCalle(local, destino),

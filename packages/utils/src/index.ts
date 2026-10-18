@@ -6,3 +6,4 @@ export * from './combos';
 export * from './disponibilidad';
 export * from './pedidos';
 export * from './categorias';
+export * from './telefono';

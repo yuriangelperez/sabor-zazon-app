@@ -68,7 +68,9 @@ export interface Pedido {
   celularCliente: string;
   metodoEntrega: MetodoEntrega;
   zonaEnvioId: string | null; // solo pedidos de antes del envío por km
-  direccionEntrega: string | null;
+  direccionEntrega: string | null; // lo que escribió el cliente (+ piso, depto)
+  direccionMapa: string | null; // dónde quedó el punto en el mapa
+  ubicacionMarcada: boolean; // el cliente movió el pin a mano
   distanciaEnvioKm: number | null;
   entregaUbicacion: { lat: number; lng: number } | null;
   costoEnvio: number;
