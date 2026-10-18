@@ -67,8 +67,10 @@ export interface Pedido {
   nombreCliente: string;
   celularCliente: string;
   metodoEntrega: MetodoEntrega;
-  zonaEnvioId: string | null;
+  zonaEnvioId: string | null; // solo pedidos de antes del envío por km
   direccionEntrega: string | null;
+  distanciaEnvioKm: number | null;
+  entregaUbicacion: { lat: number; lng: number } | null;
   costoEnvio: number;
   metodoPago: MetodoPago;
   pagoEstado: PagoEstado;
@@ -92,8 +94,8 @@ export interface NuevoPedido {
   nombreCliente: string;
   celularCliente: string;
   metodoEntrega: MetodoEntrega;
-  zonaEnvioId?: string;
-  direccionEntrega?: string;
+  cotizacionEnvioId?: string; // delivery: la dirección y la distancia salen de acá
+  detalleDireccion?: string; // piso, depto, timbre (no se busca en el mapa)
   metodoPago: MetodoPago;
   observaciones?: string;
   terminosAceptados: boolean;

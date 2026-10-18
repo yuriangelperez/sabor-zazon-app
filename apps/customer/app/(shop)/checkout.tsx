@@ -1,11 +1,11 @@
-import { useEffect, useMemo, useState, type ReactNode } from 'react';
+import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { ActivityIndicator, KeyboardAvoidingView, Platform, Pressable, ScrollView, StyleSheet, View } from 'react-native';
 import { router } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
-import { METODOS_MERCADO_PAGO, type MetodoEntrega, type MetodoPago, type ZonaEnvio } from '@sabor/types';
-import { crearPedido, getZonasEnvio, mensajeError } from '@sabor/api-client';
-import { acentoAlpha, Button, colors, radii, Selector, spacing, Text, TextInput } from '@sabor/ui';
+import { METODOS_MERCADO_PAGO, type CotizacionEnvio, type MetodoEntrega, type MetodoPago } from '@sabor/types';
+import { cotizarEnvio, crearPedido, mensajeError } from '@sabor/api-client';
+import { acentoAlpha, Button, colors, radii, spacing, Text, TextInput } from '@sabor/ui';
 import { formatPrice } from '@sabor/utils';
 
 import { Contenedor } from '../../components/Contenedor';
@@ -36,10 +36,14 @@ export default function Checkout() {
   const [nombre, setNombre] = useState(datosGuardados.nombre);
   const [celular, setCelular] = useState(datosGuardados.celular);
   const [entrega, setEntrega] = useState<MetodoEntrega>('retiro_local');
-  const [zonas, setZonas] = useState<ZonaEnvio[]>([]);
-  const [zonasCargadas, setZonasCargadas] = useState(false);
-  const [zonaId, setZonaId] = useState<string | null>(null);
   const [direccion, setDireccion] = useState('');
+  const [detalleDireccion, setDetalleDireccion] = useState('');
+  const [cotizacion, setCotizacion] = useState<CotizacionEnvio | null>(null);
+  const [cotizando, setCotizando] = useState(false);
+  const [errorEnvio, setErrorEnvio] = useState<string | null>(null);
+  // Última dirección pedida (o ya cotizada): evita pedirla dos veces cuando
+  // el blur del campo y el botón llegan juntos.
+  const direccionCotizada = useRef('');
   const [pago, setPago] = useState<MetodoPago | null>(null);
   const [observaciones, setObservaciones] = useState('');
   const [terminos, setTerminos] = useState(false);
@@ -48,21 +52,41 @@ export default function Checkout() {
   const [enviando, setEnviando] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  useEffect(() => {
-    getZonasEnvio()
-      .then(setZonas)
-      .catch(() => setZonas([]))
-      .finally(() => setZonasCargadas(true));
-  }, []);
-
-  // Sin zonas activas no hay delivery: solo se puede retirar en el local.
-  const sinDelivery = zonasCargadas && zonas.length === 0;
+  // Recepción puede apagar el delivery: solo se puede retirar en el local.
+  const sinDelivery = config != null && !config.deliveryActivo;
   useEffect(() => {
     if (sinDelivery) setEntrega('retiro_local');
   }, [sinDelivery]);
 
-  const zona = zonas.find((z) => z.id === zonaId);
-  const envio = entrega === 'delivery' ? (zona?.costo ?? 0) : 0;
+  const cambiarDireccion = (valor: string) => {
+    setDireccion(valor);
+    direccionCotizada.current = '';
+    setCotizacion(null);
+    setErrorEnvio(null);
+  };
+
+  // Busca la dirección en el mapa y trae la distancia y el costo.
+  const calcularEnvio = async () => {
+    const buscada = direccion.trim();
+    if (!buscada || direccionCotizada.current === buscada) return;
+    direccionCotizada.current = buscada;
+    setCotizando(true);
+    setErrorEnvio(null);
+    try {
+      const nueva = await cotizarEnvio(buscada);
+      // Si mientras tanto la cambió, esta respuesta ya no sirve.
+      if (direccionCotizada.current === buscada) setCotizacion(nueva);
+    } catch (err) {
+      if (direccionCotizada.current === buscada) {
+        direccionCotizada.current = ''; // para poder reintentar
+        setErrorEnvio(mensajeError(err, 'No pudimos calcular el envío.'));
+      }
+    } finally {
+      setCotizando(false);
+    }
+  };
+
+  const envio = entrega === 'delivery' ? (cotizacion?.costo ?? 0) : 0;
   const metodo = METODOS_PAGO.find((m) => m.id === pago);
   const conMercadoPago = pago != null && METODOS_MERCADO_PAGO.includes(pago);
   const recargo = metodo?.conRecargo ? Math.round((subtotal * (config?.recargoLinkPago ?? 0)) / 100) : 0;
@@ -72,12 +96,12 @@ export default function Checkout() {
     const f: string[] = [];
     if (!nombre.trim()) f.push('tu nombre');
     if (celular.replace(/\D/g, '').length < 8) f.push('un celular válido');
-    if (entrega === 'delivery' && !zonaId) f.push('la zona de envío');
     if (entrega === 'delivery' && !direccion.trim()) f.push('la dirección');
+    else if (entrega === 'delivery' && !cotizacion) f.push('calcular el envío');
     if (!pago) f.push('el método de pago');
     if (!terminos) f.push('aceptar los términos');
     return f;
-  }, [nombre, celular, entrega, zonaId, direccion, pago, terminos]);
+  }, [nombre, celular, entrega, direccion, cotizacion, pago, terminos]);
 
   if (items.length === 0) {
     return (
@@ -99,8 +123,8 @@ export default function Checkout() {
         nombreCliente: nombre.trim(),
         celularCliente: celular.trim(),
         metodoEntrega: entrega,
-        zonaEnvioId: entrega === 'delivery' ? (zonaId ?? undefined) : undefined,
-        direccionEntrega: entrega === 'delivery' ? direccion.trim() : undefined,
+        cotizacionEnvioId: entrega === 'delivery' ? cotizacion?.id : undefined,
+        detalleDireccion: entrega === 'delivery' ? detalleDireccion.trim() || undefined : undefined,
         metodoPago: pago,
         observaciones: observaciones.trim() || undefined,
         terminosAceptados: terminos,
@@ -179,7 +203,7 @@ export default function Checkout() {
                 onPress={() => setEntrega('delivery')}
                 icono="bicycle-outline"
                 titulo="Delivery"
-                detalle={sinDelivery ? 'No hay delivery por ahora' : 'Según la zona'}
+                detalle={sinDelivery ? 'No hay delivery por ahora' : config ? `Hasta ${kmTexto(config.envioKmMaximo)} km` : 'Según la distancia'}
                 deshabilitada={sinDelivery}
               />
             </View>
@@ -191,25 +215,47 @@ export default function Checkout() {
               </View>
             ) : (
               <>
-                <View style={styles.campo}>
-                  <Text style={styles.etiqueta}>Zona de envío</Text>
-                  <Selector
-                    titulo="Zona de envío"
-                    valor={zonaId}
-                    placeholder={zonas.length ? 'Elegí tu zona' : 'Cargando zonas…'}
-                    opciones={zonas.map((z) => ({ id: z.id, label: z.nombre, detalle: `+${formatPrice(z.costo)}` }))}
-                    onChange={setZonaId}
-                  />
-                  {mostrarError(!zonaId) ? <Text style={styles.textoError}>Elegí tu zona</Text> : null}
-                  <Text style={styles.ayuda}>¿Tu zona no está? Escribinos por WhatsApp antes de pedir.</Text>
-                </View>
                 <Campo
-                  etiqueta="Dirección (calle, altura, piso)"
+                  etiqueta="Dirección (calle, altura y localidad)"
                   valor={direccion}
-                  onChange={setDireccion}
+                  onChange={cambiarDireccion}
+                  onBlur={() => void calcularEnvio()}
                   error={mostrarError(!direccion.trim())}
-                  placeholder="Ej: Irigoyen 1234"
+                  placeholder="Ej: Irigoyen 1234, Pilar"
                   autoComplete="street-address"
+                />
+                {cotizacion ? (
+                  <View style={styles.cotizacion}>
+                    <Ionicons name="location" size={18} color={colors.acento} />
+                    <View style={{ flex: 1, gap: 2 }}>
+                      <Text style={styles.cotizacionDireccion}>{cotizacion.direccion}</Text>
+                      <Text style={styles.ayuda}>
+                        {kmTexto(cotizacion.distanciaKm)} km del local · envío {formatPrice(cotizacion.costo)}. ¿No es tu
+                        dirección? Corregila arriba.
+                      </Text>
+                    </View>
+                  </View>
+                ) : (
+                  <View style={styles.campo}>
+                    <Button
+                      label={cotizando ? 'Calculando…' : 'Calcular envío'}
+                      variante="contorno"
+                      disabled={!direccion.trim() || cotizando}
+                      onPress={() => void calcularEnvio()}
+                      icono={cotizando ? <ActivityIndicator color={colors.acento} /> : undefined}
+                    />
+                    {errorEnvio ? (
+                      <Text style={styles.textoError}>{errorEnvio}</Text>
+                    ) : mostrarError(!!direccion.trim()) ? (
+                      <Text style={styles.textoError}>Calculá el envío para continuar</Text>
+                    ) : null}
+                  </View>
+                )}
+                <Campo
+                  etiqueta="Piso, depto, lote o timbre (opcional)"
+                  valor={detalleDireccion}
+                  onChange={setDetalleDireccion}
+                  placeholder="Ej: 3° B"
                 />
               </>
             )}
@@ -273,7 +319,7 @@ export default function Checkout() {
             <Linea etiqueta="Subtotal" valor={formatPrice(subtotal)} />
             <Linea
               etiqueta="Envío"
-              valor={entrega === 'retiro_local' ? 'Gratis' : zona ? formatPrice(envio) : 'Elegí tu zona'}
+              valor={entrega === 'retiro_local' ? 'Gratis' : cotizacion ? formatPrice(envio) : 'Calculá el envío'}
             />
             {recargo > 0 ? <Linea etiqueta={`Recargo Mercado Pago (${config?.recargoLinkPago}%)`} valor={formatPrice(recargo)} /> : null}
             <View style={styles.lineaTotal}>
@@ -342,6 +388,8 @@ export default function Checkout() {
   );
 }
 
+const kmTexto = (km: number) => km.toLocaleString('es-AR', { maximumFractionDigits: 1 });
+
 function Seccion({ titulo, icono, children }: { titulo: string; icono: keyof typeof Ionicons.glyphMap; children: ReactNode }) {
   return (
     <View style={styles.seccion}>
@@ -358,6 +406,7 @@ function Campo({
   etiqueta,
   valor,
   onChange,
+  onBlur,
   error,
   placeholder,
   teclado,
@@ -366,6 +415,7 @@ function Campo({
   etiqueta: string;
   valor: string;
   onChange: (v: string) => void;
+  onBlur?: () => void;
   error?: boolean;
   placeholder?: string;
   teclado?: 'phone-pad';
@@ -377,6 +427,7 @@ function Campo({
       <TextInput
         value={valor}
         onChangeText={onChange}
+        onBlur={onBlur}
         placeholder={placeholder}
         placeholderTextColor={colors.textMuted}
         keyboardType={teclado}
@@ -491,6 +542,16 @@ const styles = StyleSheet.create({
   opcionDetalle: { color: colors.textMuted, fontSize: 12 },
 
   aviso: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm },
+  cotizacion: {
+    flexDirection: 'row',
+    gap: spacing.sm,
+    padding: spacing.md,
+    borderRadius: radii.sm,
+    backgroundColor: acentoAlpha(0.06),
+    borderWidth: 1,
+    borderColor: acentoAlpha(0.2),
+  },
+  cotizacionDireccion: { color: colors.textPrimary, fontSize: 14, fontWeight: '600' },
   avisoTexto: { color: colors.textSecondary, fontSize: 14, flex: 1 },
 
   datosTransferencia: {

@@ -10,11 +10,19 @@ export interface ConfiguracionLocal {
   cvu: string | null;
   titularCuenta: string | null;
   recargoLinkPago: number; // % que se suma al pagar con tarjeta o link
+  // Envío por km: base + porKm × km (la base de datos redondea a $100).
+  deliveryActivo: boolean;
+  envioBase: number;
+  envioPorKm: number;
+  envioKmMaximo: number; // no se hace delivery más lejos (distancia por calle)
 }
 
-export interface ZonaEnvio {
-  id: string;
-  nombre: string;
+export type TarifaEnvio = Pick<ConfiguracionLocal, 'deliveryActivo' | 'envioBase' | 'envioPorKm' | 'envioKmMaximo'>;
+
+// Dirección medida por la Edge Function `cotizar-envio` (OpenStreetMap).
+export interface CotizacionEnvio {
+  id: string; // se manda al crear el pedido
+  direccion: string; // cómo la encontró el mapa, para que el cliente la confirme
+  distanciaKm: number;
   costo: number;
-  activa: boolean;
 }

@@ -16,7 +16,7 @@ export const TERMINOS: { titulo: string; texto: string }[] = [
   {
     titulo: '3. Entrega y retiro',
     texto:
-      'El delivery se hace solo a las zonas disponibles y su costo se suma al total. Los tiempos de preparación y entrega son estimados y pueden variar según la demanda. Si retirás en el local, presentá tu número de pedido.',
+      'El delivery se hace hasta la distancia máxima indicada en el checkout y su costo, que depende de los kilómetros desde el local, se suma al total. Los tiempos de preparación y entrega son estimados y pueden variar según la demanda. Si retirás en el local, presentá tu número de pedido.',
   },
   {
     titulo: '4. Cancelaciones y reembolsos',

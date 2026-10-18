@@ -37,7 +37,7 @@ npm run owner:web      # dashboard financiero
 Todo vive en el esquema `saborsazon` (no choca con otros proyectos en `public`).
 
 1. **SQL Editor** → pegar y ejecutar `supabase/migrations/0001_esquema.sql`.
-2. **SQL Editor** → pegar y ejecutar `supabase/seed.sql` (menú, zonas de envío,
+2. **SQL Editor** → pegar y ejecutar `supabase/seed.sql` (menú, zonas de envío (solo hasta la 0005),
    ingredientes y datos de transferencia). Se puede volver a correr sin duplicar.
 3. **Project Settings → Data API → Exposed schemas** → agregar `saborsazon` y guardar.
 4. **Project Settings → API** → copiar *Project URL* y *anon public key* en el
@@ -170,3 +170,33 @@ en la app.
 [tarjeta de prueba](https://www.mercadopago.com.ar/developers/es/docs/checkout-pro/additional-content/your-integrations/test/cards)
 (titular `APRO` = aprobado, `OTHE` = rechazado). Para cobrar de verdad,
 cambiá `MP_ACCESS_TOKEN` por el de producción.
+
+### Envío por kilómetro (OpenStreetMap, gratis)
+
+El cliente escribe su dirección y el checkout muestra el costo del envío:
+**base + precio por km** (distancia por calle desde el local, redondeado a
+$100). Más lejos que la distancia máxima no se hace delivery. La tarifa, la
+distancia máxima y el switch para apagar el delivery están en recepción →
+Ajustes → Envíos.
+
+La dirección se busca en [OpenStreetMap](https://nominatim.org) y la
+distancia por calle se mide con [OSRM](https://project-osrm.org). Son gratis y
+no piden clave ni tarjeta. Como en la zona casi no hay alturas cargadas,
+normalmente se ubica la calle (no el número exacto); el cliente ve qué
+encontró antes de confirmar. Cada dirección se reusa 30 días sin volver a
+consultar. Si OSRM no responde, se estima la distancia como línea recta × 1,3.
+
+1. Supabase → SQL Editor → correr `supabase/migrations/0005_envio_por_km.sql`
+   (reemplaza las zonas; arranca con $1500 + $500/km hasta 6 km).
+2. La ubicación del local ya viene cargada en la 0005. Si el local se muda,
+   copiá las coordenadas nuevas (Google Maps: clic derecho sobre el local) y:
+
+   ```sql
+   update saborsazon.configuracion set local_lat = -34.4517, local_lng = -58.7778 where id = 1;
+   ```
+
+   Si se dejan vacías, se buscan solas a partir de `direccion_local` (y quedan
+   en el centro de la calle).
+3. (Opcional) Supabase → Edge Functions → **Secrets** → `CONTACTO_OSM` = un mail
+   de contacto (OpenStreetMap pide identificarse).
+4. Subir la función: `npx supabase functions deploy cotizar-envio --no-verify-jwt`

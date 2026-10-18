@@ -5,11 +5,11 @@ import { getConfiguracion, guardarHorario, mensajeError, pausarRecepcion, suscri
 import { Button, colors, radii, Selector, spacing, Text, TextInput } from '@sabor/ui';
 import { describirMomento, estaAbierto, HORAS_DEL_DIA, pausaVigente } from '@sabor/utils';
 
-import { ZonasEnvioPanel } from '../../components/ZonasEnvioPanel';
+import { EnvioPanel } from '../../components/EnvioPanel';
 import { activarAvisos, pedirPermisoEscritorio, useAvisosStore } from '../../services/notificaciones';
 import { useSesionStore } from '../../stores/useSesionStore';
 
-// RF-13 (cerrar tienda), zonas y costos de envío, avisos y cuenta. Los ingredientes agotados están en Menú.
+// RF-13 (cerrar tienda), tarifa de envío por km, avisos y cuenta. Los ingredientes agotados están en Menú.
 export default function Ajustes() {
   const { perfil, salir } = useSesionStore();
   const avisos = useAvisosStore();
@@ -142,7 +142,7 @@ export default function Ajustes() {
       </Seccion>
 
       <Seccion titulo="Envíos">
-        <ZonasEnvioPanel />
+        {config ? <EnvioPanel config={config} onGuardado={cargar} /> : <Text style={styles.ayuda}>Cargando…</Text>}
       </Seccion>
 
       {Platform.OS === 'web' ? (

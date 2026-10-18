@@ -123,7 +123,22 @@ export function TarjetaPedido({ pedido }: { pedido: Pedido }) {
           {esDelivery ? (
             <View style={styles.cliente}>
               <Ionicons name="location-outline" size={16} color={colors.textSecondary} />
-              <Text style={styles.direccion}>{pedido.direccionEntrega}</Text>
+              <Text style={styles.direccion}>
+                {pedido.direccionEntrega}
+                {pedido.distanciaEnvioKm != null ? ` · ${String(pedido.distanciaEnvioKm).replace('.', ',')} km` : ''}
+              </Text>
+              {pedido.entregaUbicacion ? (
+                <Pressable
+                  onPress={() =>
+                    Linking.openURL(
+                      `https://www.google.com/maps/search/?api=1&query=${pedido.entregaUbicacion!.lat},${pedido.entregaUbicacion!.lng}`
+                    )
+                  }
+                  hitSlop={6}
+                >
+                  <Text style={styles.enlaceMapa}>Mapa</Text>
+                </Pressable>
+              ) : null}
             </View>
           ) : null}
 
@@ -278,6 +293,7 @@ const styles = StyleSheet.create({
   clienteNombre: { color: colors.textPrimary, fontSize: 14, fontWeight: '600' },
   enlace: { color: colors.whatsapp, fontSize: 14, fontWeight: '600' },
   direccion: { color: colors.textPrimary, fontSize: 14, flex: 1 },
+  enlaceMapa: { color: colors.acento, fontSize: 14, fontWeight: '600' },
 
   items: { gap: spacing.sm, marginTop: spacing.xs },
   item: { gap: 2 },
