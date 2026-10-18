@@ -1,4 +1,4 @@
-import type { ConfiguracionLocal, CotizacionEnvio, TarifaEnvio } from '@sabor/types';
+import type { ConfiguracionLocal, CotizacionEnvio, Punto, TarifaEnvio } from '@sabor/types';
 
 import { configuracionDesdeRow, type ConfiguracionRow } from './mapeos';
 import { asegurarConfiguracion, ESQUEMA, supabase, supabaseConfigurado } from './supabaseClient';
@@ -8,7 +8,7 @@ export async function getConfiguracion(): Promise<ConfiguracionLocal> {
   const { data, error } = await supabase
     .from('configuracion')
     .select(
-      'pausado, pausado_hasta, mensaje_pausa, horario_apertura, horario_cierre, direccion_local, alias_transferencia, cvu, titular_cuenta, recargo_link_pago, delivery_activo, envio_base, envio_por_km, envio_km_maximo'
+      'pausado, pausado_hasta, mensaje_pausa, horario_apertura, horario_cierre, direccion_local, alias_transferencia, cvu, titular_cuenta, recargo_link_pago, delivery_activo, envio_base, envio_por_km, envio_km_maximo, local_lat, local_lng'
     )
     .eq('id', 1)
     .single();
@@ -54,16 +54,26 @@ export async function guardarTarifaEnvio(tarifa: TarifaEnvio): Promise<void> {
 }
 
 // Busca la dirección en OpenStreetMap (Edge Function `cotizar-envio`) y
-// devuelve la distancia por calle y el costo.
-export async function cotizarEnvio(direccion: string): Promise<CotizacionEnvio> {
+// devuelve la distancia por calle y el costo. Con `ubicacion` (el pin que
+// marcó el cliente en el mapa) mide desde ahí en vez de buscar el texto.
+export async function cotizarEnvio(direccion: string, ubicacion?: Punto): Promise<CotizacionEnvio> {
   asegurarConfiguracion();
-  const { data, error } = await supabase.functions.invoke('cotizar-envio', { body: { direccion } });
+  const { data, error } = await supabase.functions.invoke('cotizar-envio', { body: { direccion, ubicacion } });
   if (error) {
     // El mensaje en castellano viene en el cuerpo de la respuesta.
     const detalle = await (error as { context?: Response }).context?.json?.().catch(() => null);
     throw new Error(detalle?.error ?? 'No pudimos calcular el envío. Probá de nuevo en unos minutos.');
   }
   return data as CotizacionEnvio;
+}
+
+// Dónde abrir el mapa del checkout cuando la dirección no se encontró bien:
+// la coincidencia más parecida al texto, o null si no hay ninguna.
+export async function ubicarAproximado(direccion: string): Promise<Punto | null> {
+  asegurarConfiguracion();
+  const { data, error } = await supabase.functions.invoke('cotizar-envio', { body: { direccion, soloUbicar: true } });
+  if (error) return null;
+  return (data as { ubicacion: Punto | null }).ubicacion;
 }
 
 export function suscribirConfiguracion(onCambio: () => void): () => void {

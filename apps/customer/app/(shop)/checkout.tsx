@@ -3,13 +3,14 @@ import { ActivityIndicator, KeyboardAvoidingView, Platform, Pressable, ScrollVie
 import { router } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
-import { METODOS_MERCADO_PAGO, type CotizacionEnvio, type MetodoEntrega, type MetodoPago } from '@sabor/types';
-import { cotizarEnvio, crearPedido, mensajeError } from '@sabor/api-client';
+import { METODOS_MERCADO_PAGO, type CotizacionEnvio, type MetodoEntrega, type MetodoPago, type Punto } from '@sabor/types';
+import { cotizarEnvio, crearPedido, mensajeError, ubicarAproximado } from '@sabor/api-client';
 import { acentoAlpha, Button, colors, radii, spacing, Text, TextInput } from '@sabor/ui';
 import { formatPrice } from '@sabor/utils';
 
 import { Contenedor } from '../../components/Contenedor';
 import { EstadoLocalBanner } from '../../components/EstadoLocalBanner';
+import { MapaUbicacion } from '../../components/mapa/MapaUbicacion';
 import { TerminosModal } from '../../components/TerminosModal';
 import { useLocal } from '../../hooks/useLocal';
 import { abrirPagoMercadoPago } from '../../hooks/usePagoMercadoPago';
@@ -41,9 +42,20 @@ export default function Checkout() {
   const [cotizacion, setCotizacion] = useState<CotizacionEnvio | null>(null);
   const [cotizando, setCotizando] = useState(false);
   const [errorEnvio, setErrorEnvio] = useState<string | null>(null);
-  // Última dirección pedida (o ya cotizada): evita pedirla dos veces cuando
-  // el blur del campo y el botón llegan juntos.
-  const direccionCotizada = useRef('');
+  // Pin que marcó el cliente en el mapa (cuando la dirección escrita no se
+  // encuentra o queda mal ubicada). Si después cambia el texto, se descarta y
+  // se busca lo nuevo: un pin viejo (ej. "Estoy acá" desde una PC, que ubica
+  // por IP) no puede ganarle a una dirección que sí se encuentra.
+  const [pinElegido, setPinElegido] = useState<Punto | null>(null);
+  // Mapa abierto: dónde arrancó, dónde está el pin ahora y a dónde moverlo
+  // (cuando el cliente cambia la dirección con el mapa abierto).
+  const [mapa, setMapa] = useState<{ centro: Punto; zoom: number; pin: Punto; irA: Punto | null; aviso: string | null } | null>(
+    null
+  );
+  const direccionAlAbrirMapa = useRef('');
+  // Última dirección (+ pin) pedida o ya cotizada: evita pedirla dos veces
+  // cuando el blur del campo y el botón llegan juntos.
+  const consultaEnCurso = useRef('');
   const [pago, setPago] = useState<MetodoPago | null>(null);
   const [observaciones, setObservaciones] = useState('');
   const [terminos, setTerminos] = useState(false);
@@ -60,30 +72,93 @@ export default function Checkout() {
 
   const cambiarDireccion = (valor: string) => {
     setDireccion(valor);
-    direccionCotizada.current = '';
+    consultaEnCurso.current = '';
+    setPinElegido(null);
     setCotizacion(null);
     setErrorEnvio(null);
   };
 
-  // Busca la dirección en el mapa y trae la distancia y el costo.
-  const calcularEnvio = async () => {
+  // Busca la dirección (o mide desde el pin, si marcó uno) y trae la
+  // distancia y el costo.
+  const calcularEnvio = async (pin: Punto | null = pinElegido) => {
     const buscada = direccion.trim();
-    if (!buscada || direccionCotizada.current === buscada) return;
-    direccionCotizada.current = buscada;
+    const consulta = `${buscada}|${pin ? `${pin.lat},${pin.lng}` : ''}`;
+    if (!buscada || consultaEnCurso.current === consulta) return;
+    consultaEnCurso.current = consulta;
     setCotizando(true);
     setErrorEnvio(null);
     try {
-      const nueva = await cotizarEnvio(buscada);
+      const nueva = await cotizarEnvio(buscada, pin ?? undefined);
       // Si mientras tanto la cambió, esta respuesta ya no sirve.
-      if (direccionCotizada.current === buscada) setCotizacion(nueva);
+      if (consultaEnCurso.current === consulta) setCotizacion(nueva);
     } catch (err) {
-      if (direccionCotizada.current === buscada) {
-        direccionCotizada.current = ''; // para poder reintentar
+      if (consultaEnCurso.current === consulta) {
+        consultaEnCurso.current = ''; // para poder reintentar
         setErrorEnvio(mensajeError(err, 'No pudimos calcular el envío.'));
       }
     } finally {
       setCotizando(false);
     }
+  };
+
+  // Abre el mapa donde quedó la dirección encontrada. Si no se encontró,
+  // en lo más parecido al texto escrito y, si no hay nada, en el local.
+  const centroMapa = pinElegido ?? cotizacion?.ubicacion ?? null;
+  const puedeAbrirMapa = centroMapa != null || config?.localUbicacion != null;
+  const [abriendoMapa, setAbriendoMapa] = useState(false);
+  const abrirMapa = async () => {
+    let centro = centroMapa;
+    let zoom = 17;
+    if (!centro && direccion.trim()) {
+      setAbriendoMapa(true);
+      centro = await ubicarAproximado(direccion.trim());
+      setAbriendoMapa(false);
+    }
+    if (!centro) {
+      centro = config?.localUbicacion ?? null;
+      zoom = 15;
+    }
+    if (centro) {
+      direccionAlAbrirMapa.current = direccion;
+      setMapa({ centro, zoom, pin: centro, irA: null, aviso: null });
+    }
+  };
+
+  // Con el mapa abierto, si cambia la dirección se busca sola apenas deja de
+  // escribir, sin cerrar el mapa.
+  const mapaAbierto = mapa != null;
+  useEffect(() => {
+    if (!mapaAbierto || !direccion.trim() || direccion === direccionAlAbrirMapa.current) return;
+    const espera = setTimeout(() => void calcularEnvio(null), 900);
+    return () => clearTimeout(espera);
+  }, [direccion, mapaAbierto]);
+
+  // Desde que empieza a escribir hasta que llega el resultado.
+  const buscandoEnMapa =
+    cotizando ||
+    (mapaAbierto && !cotizacion && !errorEnvio && !!direccion.trim() && direccion !== direccionAlAbrirMapa.current);
+
+  // Y cuando la encuentra, el mapa y el pin van a la dirección nueva.
+  useEffect(() => {
+    const ubicacion = cotizacion?.ubicacion;
+    if (ubicacion && !pinElegido) setMapa((actual) => actual && { ...actual, pin: ubicacion, irA: ubicacion, aviso: null });
+  }, [cotizacion]);
+
+  const usarPin = () => {
+    if (!mapa) return;
+    if (!direccion.trim()) {
+      setMapa({ ...mapa, aviso: 'Escribí también tu dirección arriba: es la que ve el repartidor.' });
+      return;
+    }
+    // No movió el pin de la dirección encontrada: queda esa (con su nombre).
+    if (cotizacion && cotizacion.ubicacion.lat === mapa.pin.lat && cotizacion.ubicacion.lng === mapa.pin.lng) {
+      setMapa(null);
+      return;
+    }
+    setPinElegido(mapa.pin);
+    setMapa(null);
+    setCotizacion(null);
+    void calcularEnvio(mapa.pin);
   };
 
   const envio = entrega === 'delivery' ? (cotizacion?.costo ?? 0) : 0;
@@ -224,14 +299,54 @@ export default function Checkout() {
                   placeholder="Ej: Irigoyen 1234, Pilar"
                   autoComplete="street-address"
                 />
-                {cotizacion ? (
+                {mapa ? (
+                  <View style={styles.campo}>
+                    <Text style={styles.ayuda}>
+                      Mové el pin hasta tu casa (o tocá el mapa donde está). Si tu calle no tiene nombre en el mapa, guiate
+                      por las calles de alrededor. Desde el celular, "Estoy acá" usa tu GPS.
+                    </Text>
+                    <MapaUbicacion
+                      centro={mapa.centro}
+                      irA={mapa.irA}
+                      local={config?.localUbicacion ?? null}
+                      zoom={mapa.zoom}
+                      onMensaje={(m) =>
+                        setMapa((actual) =>
+                          actual &&
+                          ('error' in m
+                            ? { ...actual, aviso: m.error }
+                            : { ...actual, pin: { lat: m.lat, lng: m.lng }, aviso: m.aviso ?? null })
+                        )
+                      }
+                    />
+                    {buscandoEnMapa ? (
+                      <View style={styles.aviso}>
+                        <ActivityIndicator color={colors.acento} />
+                        <Text style={styles.avisoTexto}>Buscando la dirección…</Text>
+                      </View>
+                    ) : errorEnvio ? (
+                      <Text style={styles.textoError}>{errorEnvio}</Text>
+                    ) : cotizacion ? (
+                      <Text style={styles.ayuda}>
+                        {cotizacion.direccion} · {kmTexto(cotizacion.distanciaKm)} km · envío {formatPrice(cotizacion.costo)}
+                      </Text>
+                    ) : null}
+                    {mapa.aviso ? <Text style={styles.textoError}>{mapa.aviso}</Text> : null}
+                    <View style={styles.opcionesFila}>
+                      <Button label="Cancelar" variante="contorno" onPress={() => setMapa(null)} style={{ flex: 1 }} />
+                      <Button label="Usar esta ubicación" onPress={usarPin} style={{ flex: 1 }} />
+                    </View>
+                  </View>
+                ) : cotizacion ? (
                   <View style={styles.cotizacion}>
                     <Ionicons name="location" size={18} color={colors.acento} />
                     <View style={{ flex: 1, gap: 2 }}>
                       <Text style={styles.cotizacionDireccion}>{cotizacion.direccion}</Text>
                       <Text style={styles.ayuda}>
-                        {kmTexto(cotizacion.distanciaKm)} km del local · envío {formatPrice(cotizacion.costo)}. ¿No es tu
-                        dirección? Corregila arriba.
+                        {kmTexto(cotizacion.distanciaKm)} km del local · envío {formatPrice(cotizacion.costo)}.
+                      </Text>
+                      <Text style={styles.enlace} onPress={() => void abrirMapa()} accessibilityRole="button">
+                        {pinElegido ? 'Mover el pin en el mapa' : '¿No es ahí? Marcá tu casa en el mapa'}
                       </Text>
                     </View>
                   </View>
@@ -248,6 +363,20 @@ export default function Checkout() {
                       <Text style={styles.textoError}>{errorEnvio}</Text>
                     ) : mostrarError(!!direccion.trim()) ? (
                       <Text style={styles.textoError}>Calculá el envío para continuar</Text>
+                    ) : null}
+                    {puedeAbrirMapa ? (
+                      errorEnvio ? (
+                        <Button
+                          label={abriendoMapa ? 'Abriendo el mapa…' : 'Marcar mi casa en el mapa'}
+                          variante="contorno"
+                          disabled={abriendoMapa}
+                          onPress={() => void abrirMapa()}
+                        />
+                      ) : (
+                        <Text style={styles.enlace} onPress={() => void abrirMapa()} accessibilityRole="button">
+                          {abriendoMapa ? 'Abriendo el mapa…' : '¿No te encuentra? Marcá tu casa en el mapa'}
+                        </Text>
+                      )
                     ) : null}
                   </View>
                 )}
@@ -552,6 +681,7 @@ const styles = StyleSheet.create({
     borderColor: acentoAlpha(0.2),
   },
   cotizacionDireccion: { color: colors.textPrimary, fontSize: 14, fontWeight: '600' },
+  enlace: { color: colors.acento, fontSize: 13, fontWeight: '600', textDecorationLine: 'underline' },
   avisoTexto: { color: colors.textSecondary, fontSize: 14, flex: 1 },
 
   datosTransferencia: {

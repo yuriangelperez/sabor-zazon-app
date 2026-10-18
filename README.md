@@ -171,32 +171,35 @@ en la app.
 (titular `APRO` = aprobado, `OTHE` = rechazado). Para cobrar de verdad,
 cambiá `MP_ACCESS_TOKEN` por el de producción.
 
-### Envío por kilómetro (OpenStreetMap, gratis)
+### Envío por kilómetro (TomTom + OpenStreetMap, gratis)
 
 El cliente escribe su dirección y el checkout muestra el costo del envío:
-**base + precio por km** (distancia por calle desde el local, redondeado a
-$100). Más lejos que la distancia máxima no se hace delivery. La tarifa, la
-distancia máxima y el switch para apagar el delivery están en recepción →
-Ajustes → Envíos.
+**base + precio por km** (distancia por calle desde el local, el camino más
+corto, redondeado a $100). Más lejos que la distancia máxima no se hace
+delivery. La tarifa, la distancia máxima y el switch para apagar el delivery
+están en recepción → Ajustes → Envíos.
 
-La dirección se busca en [OpenStreetMap](https://nominatim.org) y la
-distancia por calle se mide con [OSRM](https://project-osrm.org). Son gratis y
-no piden clave ni tarjeta. Como en la zona casi no hay alturas cargadas,
-normalmente se ubica la calle (no el número exacto); el cliente ve qué
-encontró antes de confirmar. Cada dirección se reusa 30 días sin volver a
-consultar. Si OSRM no responde, se estima la distancia como línea recta × 1,3.
+- La dirección se busca en **TomTom**, que conoce las calles y alturas de la
+  zona (OpenStreetMap tiene muchas calles sin nombre alrededor del local). Si
+  TomTom no responde o no la encuentra, se busca en OpenStreetMap (Nominatim
+  y Photon).
+- Si no se encuentra, o quedó mal ubicada, el cliente **marca su casa en un
+  mapa** (Leaflet + OpenStreetMap) o usa "Estoy acá" (GPS del celular).
+- La distancia la calcula TomTom; si falla, OSRM; si falla, línea recta × 1,3.
+- Cada dirección se reusa 30 días sin volver a consultar.
 
 1. Supabase → SQL Editor → correr `supabase/migrations/0005_envio_por_km.sql`
-   (reemplaza las zonas; arranca con $1500 + $500/km hasta 6 km).
-2. La ubicación del local ya viene cargada en la 0005. Si el local se muda,
-   copiá las coordenadas nuevas (Google Maps: clic derecho sobre el local) y:
+   (reemplaza las zonas; arranca con $1500 + $500/km hasta 6 km y con la
+   ubicación del local ya cargada).
+2. Crear una cuenta gratis en [developer.tomtom.com](https://developer.tomtom.com)
+   (no pide tarjeta), copiar la API key y guardarla en Supabase:
+   `npx supabase secrets set TOMTOM_API_KEY=<la key>`.
+   Sin la key funciona igual, solo con OpenStreetMap.
+3. Subir la función: `npx supabase functions deploy cotizar-envio --no-verify-jwt`
 
-   ```sql
-   update saborsazon.configuracion set local_lat = -34.4517, local_lng = -58.7778 where id = 1;
-   ```
+Si el local se muda, copiá las coordenadas nuevas (Google Maps: clic derecho
+sobre el local) y:
 
-   Si se dejan vacías, se buscan solas a partir de `direccion_local` (y quedan
-   en el centro de la calle).
-3. (Opcional) Supabase → Edge Functions → **Secrets** → `CONTACTO_OSM` = un mail
-   de contacto (OpenStreetMap pide identificarse).
-4. Subir la función: `npx supabase functions deploy cotizar-envio --no-verify-jwt`
+```sql
+update saborsazon.configuracion set local_lat = -34.4517, local_lng = -58.7778 where id = 1;
+```

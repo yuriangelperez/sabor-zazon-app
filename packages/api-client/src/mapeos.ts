@@ -97,6 +97,8 @@ export interface ConfiguracionRow {
   envio_base: number;
   envio_por_km: number;
   envio_km_maximo: number | string;
+  local_lat: number | null;
+  local_lng: number | null;
 }
 
 export function configuracionDesdeRow(r: ConfiguracionRow): ConfiguracionLocal {
@@ -115,6 +117,7 @@ export function configuracionDesdeRow(r: ConfiguracionRow): ConfiguracionLocal {
     envioBase: r.envio_base,
     envioPorKm: r.envio_por_km,
     envioKmMaximo: Number(r.envio_km_maximo),
+    localUbicacion: r.local_lat == null || r.local_lng == null ? null : { lat: r.local_lat, lng: r.local_lng },
   };
 }
 

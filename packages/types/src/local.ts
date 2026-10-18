@@ -1,3 +1,8 @@
+export interface Punto {
+  lat: number;
+  lng: number;
+}
+
 // Configuración del local (tabla `configuracion`, una sola fila).
 export interface ConfiguracionLocal {
   pausado: boolean; // RF-13: recepción pausada a mano ("cerrar tienda")
@@ -15,6 +20,7 @@ export interface ConfiguracionLocal {
   envioBase: number;
   envioPorKm: number;
   envioKmMaximo: number; // no se hace delivery más lejos (distancia por calle)
+  localUbicacion: Punto | null;
 }
 
 export type TarifaEnvio = Pick<ConfiguracionLocal, 'deliveryActivo' | 'envioBase' | 'envioPorKm' | 'envioKmMaximo'>;
@@ -25,4 +31,5 @@ export interface CotizacionEnvio {
   direccion: string; // cómo la encontró el mapa, para que el cliente la confirme
   distanciaKm: number;
   costo: number;
+  ubicacion: Punto; // dónde quedó el pin (lo puede corregir en el mapa)
 }
