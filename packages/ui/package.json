@@ -9,7 +9,9 @@
     "expo-font": "*",
     "react": "*",
     "react-native": "*",
-    "react-native-safe-area-context": "*"
+    "react-native-safe-area-context": "*",
+    "expo-location": "*",
+    "react-native-webview": "*"
   },
   "dependencies": {
     "@sabor/types": "*"

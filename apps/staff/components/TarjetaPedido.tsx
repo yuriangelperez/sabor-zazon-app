@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { Linking, Pressable, StyleSheet, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import type { EstadoPedido, ItemPedido, Pedido } from '@sabor/types';
-import { acentoAlpha, Button, colors, radii, spacing, Text } from '@sabor/ui';
+import { acentoAlpha, Button, colors, radii, spacing, Text, VerEnMapa } from '@sabor/ui';
 import {
   enlaceWhatsApp,
   ETIQUETA_PAGO,
@@ -13,6 +13,9 @@ import {
   tiempoTranscurrido,
 } from '@sabor/utils';
 
+import { CONTEXTO_MAPA } from '../constants/mapa';
+import { avisarClienteListo, avisarDeliveryListo, compartirConDelivery, consultaMapaPedido } from '../services/compartirDelivery';
+import { useRepartidorStore } from '../stores/useRepartidorStore';
 import { usePedidosEnVivoStore } from '../stores/usePedidosEnVivo';
 
 // Minutos sin aceptar a partir de los cuales la tarjeta se marca en rojo.
@@ -46,6 +49,7 @@ export function TarjetaPedido({ pedido }: { pedido: Pedido }) {
   const cambiarEstado = usePedidosEnVivoStore((s) => s.cambiarEstado);
   const [abierta, setAbierta] = useState(pedido.estado === 'por_aceptar');
   const [confirmarRechazo, setConfirmarRechazo] = useState(false);
+  const numeroRepartidor = useRepartidorStore((s) => s.whatsapp);
   // Paso de la doble confirmación de la acción principal:
   // 0 = sin confirmar (se ve el botón), 1 = primer "Sí", 2 = segundo "Sí".
   // Solo aplica a "listo" y "entregado"; "Aceptar" es un toque simple.
@@ -129,6 +133,7 @@ export function TarjetaPedido({ pedido }: { pedido: Pedido }) {
             </Pressable>
           </View>
           {esDelivery ? (
+            <View>
             <View style={styles.cliente}>
               <Ionicons name="location-outline" size={16} color={colors.textSecondary} />
               <View style={{ flex: 1, gap: 2 }}>
@@ -144,18 +149,17 @@ export function TarjetaPedido({ pedido }: { pedido: Pedido }) {
                   </Text>
                 ) : null}
               </View>
-              {pedido.entregaUbicacion ? (
-                <Pressable
-                  onPress={() =>
-                    Linking.openURL(
-                      `https://www.google.com/maps/search/?api=1&query=${pedido.entregaUbicacion!.lat},${pedido.entregaUbicacion!.lng}`
-                    )
-                  }
-                  hitSlop={6}
-                >
-                  <Text style={styles.enlaceMapa}>Mapa</Text>
-                </Pressable>
-              ) : null}
+            </View>
+            <VerEnMapa
+              direccion={pedido.direccionEntrega ?? ''}
+              contexto={CONTEXTO_MAPA}
+              coordenadas={pedido.entregaUbicacion ? { latitud: pedido.entregaUbicacion.lat, longitud: pedido.entregaUbicacion.lng } : null}
+              direccionGoogle={consultaMapaPedido(pedido)}
+            />
+            <Pressable onPress={() => void compartirConDelivery(pedido)} style={styles.compartir} accessibilityRole="button">
+              <Ionicons name="share-social-outline" size={16} color={colors.acento} />
+              <Text style={styles.compartirTexto}>Compartir con delivery</Text>
+            </Pressable>
             </View>
           ) : null}
 
@@ -206,6 +210,30 @@ export function TarjetaPedido({ pedido }: { pedido: Pedido }) {
               </Pressable>
             )
           ) : null}
+        </View>
+      ) : null}
+
+      {pedido.estado === 'listo' ? (
+        <View style={styles.avisos}>
+          <Text style={styles.avisosTitulo}>Pedido listo: avisar por WhatsApp (tocá Enviar)</Text>
+          <View style={styles.fila}>
+            <Button
+              label="Avisar al cliente"
+              variante="contorno"
+              onPress={() => void avisarClienteListo(pedido)}
+              icono={<Ionicons name="logo-whatsapp" size={16} color={colors.acento} />}
+              style={styles.accion}
+            />
+            {esDelivery ? (
+              <Button
+                label="Avisar al delivery"
+                variante="contorno"
+                onPress={() => void avisarDeliveryListo(pedido, numeroRepartidor)}
+                icono={<Ionicons name="bicycle" size={16} color={colors.acento} />}
+                style={styles.accion}
+              />
+            ) : null}
+          </View>
         </View>
       ) : null}
 
@@ -308,9 +336,10 @@ const styles = StyleSheet.create({
   detalle: { gap: spacing.sm, borderTopWidth: 1, borderTopColor: colors.border, paddingTop: spacing.sm },
   cliente: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm, flexWrap: 'wrap' },
   clienteNombre: { color: colors.textPrimary, fontSize: 14, fontWeight: '600' },
+  compartir: { flexDirection: 'row', alignItems: 'center', gap: spacing.xs + 2, alignSelf: 'flex-start', paddingVertical: spacing.xs },
+  compartirTexto: { color: colors.acento, fontSize: 14, fontWeight: '700' },
   enlace: { color: colors.whatsapp, fontSize: 14, fontWeight: '600' },
   direccion: { color: colors.textPrimary, fontSize: 14, flex: 1 },
-  enlaceMapa: { color: colors.acento, fontSize: 14, fontWeight: '600' },
   direccionMapa: { color: colors.textSecondary, fontSize: 13 },
   direccionMarcada: { color: colors.acento, fontWeight: '600' },
 
@@ -343,5 +372,7 @@ const styles = StyleSheet.create({
   confirmarTexto: { color: colors.textPrimary, fontSize: 13 },
   acciones: { flexDirection: 'row', gap: spacing.sm },
   accion: { flex: 1, paddingVertical: 10 },
+  avisos: { gap: spacing.sm, paddingTop: spacing.sm },
+  avisosTitulo: { color: colors.textSecondary, fontSize: 13 },
   botonPrincipal: { paddingVertical: 12 },
 });

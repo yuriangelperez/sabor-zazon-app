@@ -26,7 +26,10 @@
       "googleServicesFile": "./google-services.json",
       "blockedPermissions": [
         "android.permission.RECORD_AUDIO"
-      ]
+      ],
+      "runtimeVersion": {
+        "policy": "appVersion"
+      }
     },
     "web": {
       "bundler": "metro",
@@ -70,6 +73,9 @@
         "projectId": "cd87c8db-726a-492e-ac4e-e21f4cfc9cf6"
       }
     },
-    "owner": "yuriperez15"
+    "owner": "yuriperez15",
+    "updates": {
+      "url": "https://u.expo.dev/cd87c8db-726a-492e-ac4e-e21f4cfc9cf6"
+    }
   }
 }

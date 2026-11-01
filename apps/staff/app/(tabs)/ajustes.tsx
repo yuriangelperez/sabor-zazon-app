@@ -7,12 +7,14 @@ import { describirMomento, estaAbierto, HORAS_DEL_DIA, pausaVigente } from '@sab
 
 import { EnvioPanel } from '../../components/EnvioPanel';
 import { activarAvisos, pedirPermisoEscritorio, useAvisosStore } from '../../services/notificaciones';
+import { useRepartidorStore } from '../../stores/useRepartidorStore';
 import { useSesionStore } from '../../stores/useSesionStore';
 
 // RF-13 (cerrar tienda), tarifa de envío por km, avisos y cuenta. Los ingredientes agotados están en Menú.
 export default function Ajustes() {
   const { perfil, salir } = useSesionStore();
   const avisos = useAvisosStore();
+  const { whatsapp: whatsappRepartidor, setWhatsapp: setWhatsappRepartidor } = useRepartidorStore();
   const [config, setConfig] = useState<ConfiguracionLocal | null>(null);
   const [mensajePausa, setMensajePausa] = useState('');
   const [horario, setHorario] = useState<{ apertura: string; cierre: string } | null>(null);
@@ -143,6 +145,18 @@ export default function Ajustes() {
 
       <Seccion titulo="Envíos">
         {config ? <EnvioPanel config={config} onGuardado={cargar} /> : <Text style={styles.ayuda}>Cargando…</Text>}
+        <Text style={styles.ayuda}>
+          WhatsApp del repartidor (con código de país, ej. 5491112345678). Con "Pedido listo", el botón "Avisar al delivery"
+          abre ese chat; si queda vacío, elegís el contacto cada vez.
+        </Text>
+        <TextInput
+          value={whatsappRepartidor}
+          onChangeText={setWhatsappRepartidor}
+          keyboardType="phone-pad"
+          placeholder="5491112345678"
+          placeholderTextColor={colors.textMuted}
+          style={styles.inputRepartidor}
+        />
       </Seccion>
 
       {Platform.OS === 'web' ? (
@@ -210,6 +224,15 @@ function Fila({ texto, children }: { texto: string; children: ReactNode }) {
 
 const styles = StyleSheet.create({
   pantalla: { flex: 1, backgroundColor: colors.background },
+  inputRepartidor: {
+    backgroundColor: colors.surfaceAlt,
+    borderWidth: 1,
+    borderColor: colors.borderStrong,
+    borderRadius: radii.md,
+    color: colors.textPrimary,
+    padding: spacing.md,
+    fontSize: 15,
+  },
   contenido: { padding: spacing.md, gap: spacing.md, paddingBottom: spacing.xl, width: '100%', maxWidth: 720, alignSelf: 'center' },
   error: { color: colors.danger, textAlign: 'center' },
   seccion: {
