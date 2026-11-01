@@ -6,7 +6,8 @@ import { acentoAlpha, Button, colors, radii, spacing, Text, VerEnMapa } from '@s
 import { ETIQUETA_PAGO, ETIQUETA_PAGO_ESTADO, formatPrice, horaCorta, numeroPedido, tiempoTranscurrido } from '@sabor/utils';
 
 import { CONTEXTO_MAPA } from '../constants/mapa';
-import { compartirConDelivery } from '../services/compartirDelivery';
+import { avisarClienteListo, avisarDeliveryListo, compartirConDelivery } from '../services/compartirDelivery';
+import { useRepartidorStore } from '../stores/useRepartidorStore';
 import { usePedidosEnVivoStore } from '../stores/usePedidosEnVivo';
 
 // Minutos sin aceptar a partir de los cuales la tarjeta se marca en rojo.
@@ -40,6 +41,7 @@ export function TarjetaPedido({ pedido }: { pedido: Pedido }) {
   const cambiarEstado = usePedidosEnVivoStore((s) => s.cambiarEstado);
   const [abierta, setAbierta] = useState(pedido.estado === 'por_aceptar');
   const [confirmarRechazo, setConfirmarRechazo] = useState(false);
+  const numeroRepartidor = useRepartidorStore((s) => s.whatsapp);
 
   const cantidadProductos = pedido.items.reduce((acc, i) => acc + i.cantidad, 0);
   const minutos = (Date.now() - new Date(pedido.creadoEn).getTime()) / 60_000;
@@ -157,6 +159,30 @@ export function TarjetaPedido({ pedido }: { pedido: Pedido }) {
         </View>
       ) : null}
 
+      {pedido.estado === 'listo' ? (
+        <View style={styles.avisos}>
+          <Text style={styles.avisosTitulo}>Pedido listo: avisar por WhatsApp (tocá Enviar)</Text>
+          <View style={styles.fila}>
+            <Button
+              label="Avisar al cliente"
+              variante="contorno"
+              onPress={() => void avisarClienteListo(pedido)}
+              icono={<Ionicons name="logo-whatsapp" size={16} color={colors.acento} />}
+              style={styles.accion}
+            />
+            {esDelivery ? (
+              <Button
+                label="Avisar al delivery"
+                variante="contorno"
+                onPress={() => void avisarDeliveryListo(pedido, numeroRepartidor)}
+                icono={<Ionicons name="bicycle" size={16} color={colors.acento} />}
+                style={styles.accion}
+              />
+            ) : null}
+          </View>
+        </View>
+      ) : null}
+
       {accion && !confirmarRechazo ? (
         <Button label={accion.label} onPress={() => void cambiarEstado(pedido.id, accion.estado)} style={styles.botonPrincipal} />
       ) : null}
@@ -264,5 +290,7 @@ const styles = StyleSheet.create({
   confirmarTexto: { color: colors.textPrimary, fontSize: 13 },
   acciones: { flexDirection: 'row', gap: spacing.sm },
   accion: { flex: 1, paddingVertical: 10 },
+  avisos: { gap: spacing.sm, paddingTop: spacing.sm },
+  avisosTitulo: { color: colors.textSecondary, fontSize: 13 },
   botonPrincipal: { paddingVertical: 12 },
 });
