@@ -13,6 +13,43 @@ coverage/
 # Claves privadas de Firebase (cuenta de servicio): nunca al repo
 *firebase-adminsdk*.json
 
+# Config de Firebase Android (contiene API key)
+google-services.json
+
 # Supabase CLI
 supabase/.temp/
 supabase/.branches/
+
+# Variables de entorno (las .example sí se versionan)
+.env.*
+!.env.example
+supabase/.env
+supabase/functions/.env
+
+# Config de Firebase / Apple
+GoogleService-Info.plist
+*service-account*.json
+
+# Firmas y credenciales de builds (EAS / Android / iOS)
+*.jks
+*.keystore
+*.p8
+*.p12
+*.pem
+*.key
+*.mobileprovision
+credentials.json
+
+# Binarios de build
+*.apk
+*.aab
+*.ipa
+
+# Vercel / EAS locales
+.vercel/
+.eas/
+
+# Notas internas y config local de herramientas de IA
+.agents/
+.claude/
+CLAUDE.md

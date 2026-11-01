@@ -1,15 +1,16 @@
-import { useEffect, useMemo, useState, type ReactNode } from 'react';
+import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { ActivityIndicator, KeyboardAvoidingView, Platform, Pressable, ScrollView, StyleSheet, View } from 'react-native';
 import { router } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
-import { METODOS_MERCADO_PAGO, type MetodoEntrega, type MetodoPago, type ZonaEnvio } from '@sabor/types';
-import { crearPedido, getZonasEnvio, mensajeError } from '@sabor/api-client';
-import { acentoAlpha, Button, colors, radii, Selector, spacing, Text, TextInput } from '@sabor/ui';
+import { METODOS_MERCADO_PAGO, type CotizacionEnvio, type MetodoEntrega, type MetodoPago, type Punto } from '@sabor/types';
+import { cotizarEnvio, crearPedido, mensajeError, ubicarAproximado } from '@sabor/api-client';
+import { acentoAlpha, Button, colors, radii, spacing, Text, TextInput } from '@sabor/ui';
 import { formatPrice } from '@sabor/utils';
 
 import { Contenedor } from '../../components/Contenedor';
 import { EstadoLocalBanner } from '../../components/EstadoLocalBanner';
+import { MapaUbicacion } from '../../components/mapa/MapaUbicacion';
 import { TerminosModal } from '../../components/TerminosModal';
 import { useLocal } from '../../hooks/useLocal';
 import { abrirPagoMercadoPago } from '../../hooks/usePagoMercadoPago';
@@ -36,9 +37,25 @@ export default function Checkout() {
   const [nombre, setNombre] = useState(datosGuardados.nombre);
   const [celular, setCelular] = useState(datosGuardados.celular);
   const [entrega, setEntrega] = useState<MetodoEntrega>('retiro_local');
-  const [zonas, setZonas] = useState<ZonaEnvio[]>([]);
-  const [zonaId, setZonaId] = useState<string | null>(null);
   const [direccion, setDireccion] = useState('');
+  const [detalleDireccion, setDetalleDireccion] = useState('');
+  const [cotizacion, setCotizacion] = useState<CotizacionEnvio | null>(null);
+  const [cotizando, setCotizando] = useState(false);
+  const [errorEnvio, setErrorEnvio] = useState<string | null>(null);
+  // Pin que marcó el cliente en el mapa (cuando la dirección escrita no se
+  // encuentra o queda mal ubicada). Si después cambia el texto, se descarta y
+  // se busca lo nuevo: un pin viejo (ej. "Estoy acá" desde una PC, que ubica
+  // por IP) no puede ganarle a una dirección que sí se encuentra.
+  const [pinElegido, setPinElegido] = useState<Punto | null>(null);
+  // Mapa abierto: dónde arrancó, dónde está el pin ahora y a dónde moverlo
+  // (cuando el cliente cambia la dirección con el mapa abierto).
+  const [mapa, setMapa] = useState<{ centro: Punto; zoom: number; pin: Punto; irA: Punto | null; aviso: string | null } | null>(
+    null
+  );
+  const direccionAlAbrirMapa = useRef('');
+  // Última dirección (+ pin) pedida o ya cotizada: evita pedirla dos veces
+  // cuando el blur del campo y el botón llegan juntos.
+  const consultaEnCurso = useRef('');
   const [pago, setPago] = useState<MetodoPago | null>(null);
   const [observaciones, setObservaciones] = useState('');
   const [terminos, setTerminos] = useState(false);
@@ -47,14 +64,104 @@ export default function Checkout() {
   const [enviando, setEnviando] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  // Recepción puede apagar el delivery: solo se puede retirar en el local.
+  const sinDelivery = config != null && !config.deliveryActivo;
   useEffect(() => {
-    getZonasEnvio()
-      .then(setZonas)
-      .catch(() => setZonas([]));
-  }, []);
+    if (sinDelivery) setEntrega('retiro_local');
+  }, [sinDelivery]);
 
-  const zona = zonas.find((z) => z.id === zonaId);
-  const envio = entrega === 'delivery' ? (zona?.costo ?? 0) : 0;
+  const cambiarDireccion = (valor: string) => {
+    setDireccion(valor);
+    consultaEnCurso.current = '';
+    setPinElegido(null);
+    setCotizacion(null);
+    setErrorEnvio(null);
+  };
+
+  // Busca la dirección (o mide desde el pin, si marcó uno) y trae la
+  // distancia y el costo.
+  const calcularEnvio = async (pin: Punto | null = pinElegido) => {
+    const buscada = direccion.trim();
+    const consulta = `${buscada}|${pin ? `${pin.lat},${pin.lng}` : ''}`;
+    if (!buscada || consultaEnCurso.current === consulta) return;
+    consultaEnCurso.current = consulta;
+    setCotizando(true);
+    setErrorEnvio(null);
+    try {
+      const nueva = await cotizarEnvio(buscada, pin ?? undefined);
+      // Si mientras tanto la cambió, esta respuesta ya no sirve.
+      if (consultaEnCurso.current === consulta) setCotizacion(nueva);
+    } catch (err) {
+      if (consultaEnCurso.current === consulta) {
+        consultaEnCurso.current = ''; // para poder reintentar
+        setErrorEnvio(mensajeError(err, 'No pudimos calcular el envío.'));
+      }
+    } finally {
+      setCotizando(false);
+    }
+  };
+
+  // Abre el mapa donde quedó la dirección encontrada. Si no se encontró,
+  // en lo más parecido al texto escrito y, si no hay nada, en el local.
+  const centroMapa = pinElegido ?? cotizacion?.ubicacion ?? null;
+  const puedeAbrirMapa = centroMapa != null || config?.localUbicacion != null;
+  const [abriendoMapa, setAbriendoMapa] = useState(false);
+  const abrirMapa = async () => {
+    let centro = centroMapa;
+    let zoom = 17;
+    if (!centro && direccion.trim()) {
+      setAbriendoMapa(true);
+      centro = await ubicarAproximado(direccion.trim());
+      setAbriendoMapa(false);
+    }
+    if (!centro) {
+      centro = config?.localUbicacion ?? null;
+      zoom = 15;
+    }
+    if (centro) {
+      direccionAlAbrirMapa.current = direccion;
+      setMapa({ centro, zoom, pin: centro, irA: null, aviso: null });
+    }
+  };
+
+  // Con el mapa abierto, si cambia la dirección se busca sola apenas deja de
+  // escribir, sin cerrar el mapa.
+  const mapaAbierto = mapa != null;
+  useEffect(() => {
+    if (!mapaAbierto || !direccion.trim() || direccion === direccionAlAbrirMapa.current) return;
+    const espera = setTimeout(() => void calcularEnvio(null), 900);
+    return () => clearTimeout(espera);
+  }, [direccion, mapaAbierto]);
+
+  // Desde que empieza a escribir hasta que llega el resultado.
+  const buscandoEnMapa =
+    cotizando ||
+    (mapaAbierto && !cotizacion && !errorEnvio && !!direccion.trim() && direccion !== direccionAlAbrirMapa.current);
+
+  // Y cuando la encuentra, el mapa y el pin van a la dirección nueva.
+  useEffect(() => {
+    const ubicacion = cotizacion?.ubicacion;
+    if (ubicacion && !pinElegido) setMapa((actual) => actual && { ...actual, pin: ubicacion, irA: ubicacion, aviso: null });
+  }, [cotizacion]);
+
+  const usarPin = () => {
+    if (!mapa) return;
+    if (!direccion.trim()) {
+      setMapa({ ...mapa, aviso: 'Escribí también tu dirección arriba: es la que ve el repartidor.' });
+      return;
+    }
+    // No movió el pin de la dirección encontrada: queda esa (con su nombre).
+    if (cotizacion && cotizacion.ubicacion.lat === mapa.pin.lat && cotizacion.ubicacion.lng === mapa.pin.lng) {
+      setMapa(null);
+      return;
+    }
+    setPinElegido(mapa.pin);
+    setMapa(null);
+    setCotizacion(null);
+    void calcularEnvio(mapa.pin);
+  };
+
+  const envio = entrega === 'delivery' ? (cotizacion?.costo ?? 0) : 0;
   const metodo = METODOS_PAGO.find((m) => m.id === pago);
   const conMercadoPago = pago != null && METODOS_MERCADO_PAGO.includes(pago);
   const recargo = metodo?.conRecargo ? Math.round((subtotal * (config?.recargoLinkPago ?? 0)) / 100) : 0;
@@ -64,12 +171,12 @@ export default function Checkout() {
     const f: string[] = [];
     if (!nombre.trim()) f.push('tu nombre');
     if (celular.replace(/\D/g, '').length < 8) f.push('un celular válido');
-    if (entrega === 'delivery' && !zonaId) f.push('la zona de envío');
     if (entrega === 'delivery' && !direccion.trim()) f.push('la dirección');
+    else if (entrega === 'delivery' && !cotizacion) f.push('calcular el envío');
     if (!pago) f.push('el método de pago');
     if (!terminos) f.push('aceptar los términos');
     return f;
-  }, [nombre, celular, entrega, zonaId, direccion, pago, terminos]);
+  }, [nombre, celular, entrega, direccion, cotizacion, pago, terminos]);
 
   if (items.length === 0) {
     return (
@@ -91,8 +198,8 @@ export default function Checkout() {
         nombreCliente: nombre.trim(),
         celularCliente: celular.trim(),
         metodoEntrega: entrega,
-        zonaEnvioId: entrega === 'delivery' ? (zonaId ?? undefined) : undefined,
-        direccionEntrega: entrega === 'delivery' ? direccion.trim() : undefined,
+        cotizacionEnvioId: entrega === 'delivery' ? cotizacion?.id : undefined,
+        detalleDireccion: entrega === 'delivery' ? detalleDireccion.trim() || undefined : undefined,
         metodoPago: pago,
         observaciones: observaciones.trim() || undefined,
         terminosAceptados: terminos,
@@ -171,7 +278,8 @@ export default function Checkout() {
                 onPress={() => setEntrega('delivery')}
                 icono="bicycle-outline"
                 titulo="Delivery"
-                detalle="Según la zona"
+                detalle={sinDelivery ? 'No hay delivery por ahora' : config ? `Hasta ${kmTexto(config.envioKmMaximo)} km` : 'Según la distancia'}
+                deshabilitada={sinDelivery}
               />
             </View>
 
@@ -182,25 +290,101 @@ export default function Checkout() {
               </View>
             ) : (
               <>
-                <View style={styles.campo}>
-                  <Text style={styles.etiqueta}>Zona de envío</Text>
-                  <Selector
-                    titulo="Zona de envío"
-                    valor={zonaId}
-                    placeholder={zonas.length ? 'Elegí tu zona' : 'Cargando zonas…'}
-                    opciones={zonas.map((z) => ({ id: z.id, label: z.nombre, detalle: `+${formatPrice(z.costo)}` }))}
-                    onChange={setZonaId}
-                  />
-                  {mostrarError(!zonaId) ? <Text style={styles.textoError}>Elegí tu zona</Text> : null}
-                  <Text style={styles.ayuda}>¿Tu zona no está? Escribinos por WhatsApp antes de pedir.</Text>
-                </View>
                 <Campo
-                  etiqueta="Dirección (calle, altura, piso)"
+                  etiqueta="Dirección (calle, altura y localidad)"
                   valor={direccion}
-                  onChange={setDireccion}
+                  onChange={cambiarDireccion}
+                  onBlur={() => void calcularEnvio()}
                   error={mostrarError(!direccion.trim())}
-                  placeholder="Ej: Irigoyen 1234"
+                  placeholder="Ej: Irigoyen 1234, Pilar"
                   autoComplete="street-address"
+                />
+                {mapa ? (
+                  <View style={styles.campo}>
+                    <Text style={styles.ayuda}>
+                      Mové el pin hasta tu casa (o tocá el mapa donde está). Si tu calle no tiene nombre en el mapa, guiate
+                      por las calles de alrededor. Desde el celular, "Estoy acá" usa tu GPS.
+                    </Text>
+                    <MapaUbicacion
+                      centro={mapa.centro}
+                      irA={mapa.irA}
+                      local={config?.localUbicacion ?? null}
+                      zoom={mapa.zoom}
+                      onMensaje={(m) =>
+                        setMapa((actual) =>
+                          actual &&
+                          ('error' in m
+                            ? { ...actual, aviso: m.error }
+                            : { ...actual, pin: { lat: m.lat, lng: m.lng }, aviso: m.aviso ?? null })
+                        )
+                      }
+                    />
+                    {buscandoEnMapa ? (
+                      <View style={styles.aviso}>
+                        <ActivityIndicator color={colors.acento} />
+                        <Text style={styles.avisoTexto}>Buscando la dirección…</Text>
+                      </View>
+                    ) : errorEnvio ? (
+                      <Text style={styles.textoError}>{errorEnvio}</Text>
+                    ) : cotizacion ? (
+                      <Text style={styles.ayuda}>
+                        {cotizacion.direccion} · {kmTexto(cotizacion.distanciaKm)} km · envío {formatPrice(cotizacion.costo)}
+                      </Text>
+                    ) : null}
+                    {mapa.aviso ? <Text style={styles.textoError}>{mapa.aviso}</Text> : null}
+                    <View style={styles.opcionesFila}>
+                      <Button label="Cancelar" variante="contorno" onPress={() => setMapa(null)} style={{ flex: 1 }} />
+                      <Button label="Usar esta ubicación" onPress={usarPin} style={{ flex: 1 }} />
+                    </View>
+                  </View>
+                ) : cotizacion ? (
+                  <View style={styles.cotizacion}>
+                    <Ionicons name="location" size={18} color={colors.acento} />
+                    <View style={{ flex: 1, gap: 2 }}>
+                      <Text style={styles.cotizacionDireccion}>{cotizacion.direccion}</Text>
+                      <Text style={styles.ayuda}>
+                        {kmTexto(cotizacion.distanciaKm)} km del local · envío {formatPrice(cotizacion.costo)}.
+                      </Text>
+                      <Text style={styles.enlace} onPress={() => void abrirMapa()} accessibilityRole="button">
+                        {pinElegido ? 'Mover el pin en el mapa' : '¿No es ahí? Marcá tu casa en el mapa'}
+                      </Text>
+                    </View>
+                  </View>
+                ) : (
+                  <View style={styles.campo}>
+                    <Button
+                      label={cotizando ? 'Calculando…' : 'Calcular envío'}
+                      variante="contorno"
+                      disabled={!direccion.trim() || cotizando}
+                      onPress={() => void calcularEnvio()}
+                      icono={cotizando ? <ActivityIndicator color={colors.acento} /> : undefined}
+                    />
+                    {errorEnvio ? (
+                      <Text style={styles.textoError}>{errorEnvio}</Text>
+                    ) : mostrarError(!!direccion.trim()) ? (
+                      <Text style={styles.textoError}>Calculá el envío para continuar</Text>
+                    ) : null}
+                    {puedeAbrirMapa ? (
+                      errorEnvio ? (
+                        <Button
+                          label={abriendoMapa ? 'Abriendo el mapa…' : 'Marcar mi casa en el mapa'}
+                          variante="contorno"
+                          disabled={abriendoMapa}
+                          onPress={() => void abrirMapa()}
+                        />
+                      ) : (
+                        <Text style={styles.enlace} onPress={() => void abrirMapa()} accessibilityRole="button">
+                          {abriendoMapa ? 'Abriendo el mapa…' : '¿No te encuentra? Marcá tu casa en el mapa'}
+                        </Text>
+                      )
+                    ) : null}
+                  </View>
+                )}
+                <Campo
+                  etiqueta="Piso, depto, lote o timbre (opcional)"
+                  valor={detalleDireccion}
+                  onChange={setDetalleDireccion}
+                  placeholder="Ej: 3° B"
                 />
               </>
             )}
@@ -264,7 +448,7 @@ export default function Checkout() {
             <Linea etiqueta="Subtotal" valor={formatPrice(subtotal)} />
             <Linea
               etiqueta="Envío"
-              valor={entrega === 'retiro_local' ? 'Gratis' : zona ? formatPrice(envio) : 'Elegí tu zona'}
+              valor={entrega === 'retiro_local' ? 'Gratis' : cotizacion ? formatPrice(envio) : 'Calculá el envío'}
             />
             {recargo > 0 ? <Linea etiqueta={`Recargo Mercado Pago (${config?.recargoLinkPago}%)`} valor={formatPrice(recargo)} /> : null}
             <View style={styles.lineaTotal}>
@@ -333,6 +517,8 @@ export default function Checkout() {
   );
 }
 
+const kmTexto = (km: number) => km.toLocaleString('es-AR', { maximumFractionDigits: 1 });
+
 function Seccion({ titulo, icono, children }: { titulo: string; icono: keyof typeof Ionicons.glyphMap; children: ReactNode }) {
   return (
     <View style={styles.seccion}>
@@ -349,6 +535,7 @@ function Campo({
   etiqueta,
   valor,
   onChange,
+  onBlur,
   error,
   placeholder,
   teclado,
@@ -357,6 +544,7 @@ function Campo({
   etiqueta: string;
   valor: string;
   onChange: (v: string) => void;
+  onBlur?: () => void;
   error?: boolean;
   placeholder?: string;
   teclado?: 'phone-pad';
@@ -368,6 +556,7 @@ function Campo({
       <TextInput
         value={valor}
         onChangeText={onChange}
+        onBlur={onBlur}
         placeholder={placeholder}
         placeholderTextColor={colors.textMuted}
         keyboardType={teclado}
@@ -385,19 +574,22 @@ function Opcion({
   icono,
   titulo,
   detalle,
+  deshabilitada,
 }: {
   seleccionada: boolean;
   onPress: () => void;
   icono: keyof typeof Ionicons.glyphMap;
   titulo: string;
   detalle: string;
+  deshabilitada?: boolean;
 }) {
   return (
     <Pressable
       accessibilityRole="radio"
-      accessibilityState={{ selected: seleccionada }}
+      accessibilityState={{ selected: seleccionada, disabled: deshabilitada }}
+      disabled={deshabilitada}
       onPress={onPress}
-      style={[styles.opcion, seleccionada && styles.opcionSeleccionada]}
+      style={[styles.opcion, seleccionada && styles.opcionSeleccionada, deshabilitada && styles.opcionDeshabilitada]}
     >
       <Ionicons name={icono} size={22} color={seleccionada ? colors.acento : colors.textSecondary} />
       <Text style={styles.opcionTitulo}>{titulo}</Text>
@@ -474,10 +666,22 @@ const styles = StyleSheet.create({
     backgroundColor: colors.background,
   },
   opcionSeleccionada: { borderColor: colors.acento, backgroundColor: acentoAlpha(0.08) },
+  opcionDeshabilitada: { opacity: 0.5 },
   opcionTitulo: { color: colors.textPrimary, fontSize: 14, fontWeight: '600' },
   opcionDetalle: { color: colors.textMuted, fontSize: 12 },
 
   aviso: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm },
+  cotizacion: {
+    flexDirection: 'row',
+    gap: spacing.sm,
+    padding: spacing.md,
+    borderRadius: radii.sm,
+    backgroundColor: acentoAlpha(0.06),
+    borderWidth: 1,
+    borderColor: acentoAlpha(0.2),
+  },
+  cotizacionDireccion: { color: colors.textPrimary, fontSize: 14, fontWeight: '600' },
+  enlace: { color: colors.acento, fontSize: 13, fontWeight: '600', textDecorationLine: 'underline' },
   avisoTexto: { color: colors.textSecondary, fontSize: 14, flex: 1 },
 
   datosTransferencia: {

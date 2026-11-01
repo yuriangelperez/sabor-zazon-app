@@ -8,7 +8,6 @@ import type {
   Pedido,
   Producto,
   Relleno,
-  ZonaEnvio,
 } from '@sabor/types';
 
 // Filas tal como vienen de Postgres (snake_case) y su conversión a los tipos
@@ -94,6 +93,12 @@ export interface ConfiguracionRow {
   cvu: string | null;
   titular_cuenta: string | null;
   recargo_link_pago: number | string;
+  delivery_activo: boolean;
+  envio_base: number;
+  envio_por_km: number;
+  envio_km_maximo: number | string;
+  local_lat: number | null;
+  local_lng: number | null;
 }
 
 export function configuracionDesdeRow(r: ConfiguracionRow): ConfiguracionLocal {
@@ -108,18 +113,12 @@ export function configuracionDesdeRow(r: ConfiguracionRow): ConfiguracionLocal {
     cvu: r.cvu,
     titularCuenta: r.titular_cuenta,
     recargoLinkPago: Number(r.recargo_link_pago),
+    deliveryActivo: r.delivery_activo,
+    envioBase: r.envio_base,
+    envioPorKm: r.envio_por_km,
+    envioKmMaximo: Number(r.envio_km_maximo),
+    localUbicacion: r.local_lat == null || r.local_lng == null ? null : { lat: r.local_lat, lng: r.local_lng },
   };
-}
-
-export interface ZonaRow {
-  id: string;
-  nombre: string;
-  costo: number;
-  activa: boolean;
-}
-
-export function zonaDesdeRow(r: ZonaRow): ZonaEnvio {
-  return { id: r.id, nombre: r.nombre, costo: r.costo, activa: r.activa };
 }
 
 export interface ItemPedidoRow {
@@ -141,6 +140,11 @@ export interface PedidoRow {
   metodo_entrega: Pedido['metodoEntrega'];
   zona_envio_id: string | null;
   direccion_entrega: string | null;
+  direccion_mapa: string | null;
+  ubicacion_marcada: boolean | null;
+  distancia_envio_m: number | null;
+  entrega_lat: number | null;
+  entrega_lng: number | null;
   costo_envio: number;
   metodo_pago: Pedido['metodoPago'];
   pago_estado: Pedido['pagoEstado'];
@@ -180,6 +184,10 @@ export function pedidoDesdeRow(r: PedidoRow): Pedido {
     metodoEntrega: r.metodo_entrega,
     zonaEnvioId: r.zona_envio_id,
     direccionEntrega: r.direccion_entrega,
+    direccionMapa: r.direccion_mapa,
+    ubicacionMarcada: r.ubicacion_marcada ?? false,
+    distanciaEnvioKm: r.distancia_envio_m == null ? null : Math.round(r.distancia_envio_m / 100) / 10,
+    entregaUbicacion: r.entrega_lat == null || r.entrega_lng == null ? null : { lat: r.entrega_lat, lng: r.entrega_lng },
     costoEnvio: r.costo_envio,
     metodoPago: r.metodo_pago,
     pagoEstado: r.pago_estado ?? 'no_aplica',

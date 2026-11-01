@@ -5,6 +5,8 @@ import { useAudioPlayer } from 'expo-audio';
 import type { EstadoPedido, Pedido } from '@sabor/types';
 import { cambiarEstadoPedido, getPedidosActivos, mensajeError, suscribirPedidos } from '@sabor/api-client';
 
+import { avisarEnEscritorio } from '../services/notificaciones';
+
 const sonidoNuevoPedido = require('../assets/sonidos/nuevo_pedido.mp3');
 
 // Pedidos que ya se anunciaron (o que ya estaban en pantalla), para que un
@@ -77,6 +79,7 @@ export function usePedidosEnVivo() {
           // En la web el navegador puede bloquear el sonido hasta que se toque la pantalla.
         }
         if (Platform.OS !== 'web') Vibration.vibrate([0, 400, 200, 400]);
+        else avisarEnEscritorio(evento.numero);
       }
       void usePedidosEnVivoStore.getState().cargar();
     });

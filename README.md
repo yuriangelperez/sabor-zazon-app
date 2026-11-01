@@ -37,7 +37,7 @@ npm run owner:web      # dashboard financiero
 Todo vive en el esquema `saborsazon` (no choca con otros proyectos en `public`).
 
 1. **SQL Editor** → pegar y ejecutar `supabase/migrations/0001_esquema.sql`.
-2. **SQL Editor** → pegar y ejecutar `supabase/seed.sql` (menú, zonas de envío,
+2. **SQL Editor** → pegar y ejecutar `supabase/seed.sql` (menú, zonas de envío (solo hasta la 0005),
    ingredientes y datos de transferencia). Se puede volver a correr sin duplicar.
 3. **Project Settings → Data API → Exposed schemas** → agregar `saborsazon` y guardar.
 4. **Project Settings → API** → copiar *Project URL* y *anon public key* en el
@@ -170,3 +170,36 @@ en la app.
 [tarjeta de prueba](https://www.mercadopago.com.ar/developers/es/docs/checkout-pro/additional-content/your-integrations/test/cards)
 (titular `APRO` = aprobado, `OTHE` = rechazado). Para cobrar de verdad,
 cambiá `MP_ACCESS_TOKEN` por el de producción.
+
+### Envío por kilómetro (TomTom + OpenStreetMap, gratis)
+
+El cliente escribe su dirección y el checkout muestra el costo del envío:
+**base + precio por km** (distancia por calle desde el local, el camino más
+corto, redondeado a $100). Más lejos que la distancia máxima no se hace
+delivery. La tarifa, la distancia máxima y el switch para apagar el delivery
+están en recepción → Ajustes → Envíos.
+
+- La dirección se busca en **TomTom**, que conoce las calles y alturas de la
+  zona (OpenStreetMap tiene muchas calles sin nombre alrededor del local). Si
+  TomTom no responde o no la encuentra, se busca en OpenStreetMap (Nominatim
+  y Photon).
+- Si no se encuentra, o quedó mal ubicada, el cliente **marca su casa en un
+  mapa** (Leaflet + OpenStreetMap) o usa "Estoy acá" (GPS del celular).
+- La distancia la calcula TomTom; si falla, OSRM; si falla, línea recta × 1,3.
+- Cada dirección se reusa 30 días sin volver a consultar.
+
+1. Supabase → SQL Editor → correr `supabase/migrations/0005_envio_por_km.sql`
+   (reemplaza las zonas; arranca con $1500 + $500/km hasta 6 km y con la
+   ubicación del local ya cargada).
+2. Crear una cuenta gratis en [developer.tomtom.com](https://developer.tomtom.com)
+   (no pide tarjeta), copiar la API key y guardarla en Supabase:
+   `npx supabase secrets set TOMTOM_API_KEY=<la key>`.
+   Sin la key funciona igual, solo con OpenStreetMap.
+3. Subir la función: `npx supabase functions deploy cotizar-envio --no-verify-jwt`
+
+Si el local se muda, copiá las coordenadas nuevas (Google Maps: clic derecho
+sobre el local) y:
+
+```sql
+update saborsazon.configuracion set local_lat = -34.4517, local_lng = -58.7778 where id = 1;
+```

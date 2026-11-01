@@ -3,36 +3,18 @@
 //   MP_ACCESS_TOKEN     Access Token de la app de Mercado Pago (APP_USR-… o TEST-…)
 //   APP_URL             web de pedidos, ej. https://sabor-zazon-app-rr3c.vercel.app
 //   MP_WEBHOOK_SECRET   (opcional) clave secreta de Webhooks para validar la firma
-// SUPABASE_URL y SUPABASE_SERVICE_ROLE_KEY los pone Supabase solo.
 
-import { createClient } from 'npm:@supabase/supabase-js@2';
+import { db } from './comun.ts';
+
+export { cors, db, respuesta } from './comun.ts';
 
 const API_MP = 'https://api.mercadopago.com';
-
-export const cors = {
-  'Access-Control-Allow-Origin': '*',
-  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
-  'Access-Control-Allow-Methods': 'POST, OPTIONS',
-};
-
-export function respuesta(cuerpo: unknown, status = 200): Response {
-  return new Response(JSON.stringify(cuerpo), {
-    status,
-    headers: { ...cors, 'Content-Type': 'application/json' },
-  });
-}
 
 export function secreto(nombre: string): string {
   const valor = Deno.env.get(nombre);
   if (!valor) throw new ErrorMP(`Falta el secreto ${nombre} en Supabase (Edge Functions → Secrets).`);
   return valor;
 }
-
-// Cliente con la clave de servicio: salta RLS, solo existe en el servidor.
-export const db = createClient(secreto('SUPABASE_URL'), secreto('SUPABASE_SERVICE_ROLE_KEY'), {
-  db: { schema: 'saborsazon' },
-  auth: { persistSession: false },
-});
 
 // Error para mostrarle al cliente o a quien configura (sin datos secretos).
 export class ErrorMP extends Error {}

@@ -6,7 +6,7 @@ import { asegurarConfiguracion, ESQUEMA, supabase, supabaseConfigurado } from '.
 
 const COLUMNAS_PEDIDO = `
   id, numero, estado, nombre_cliente, celular_cliente, metodo_entrega, zona_envio_id,
-  direccion_entrega, costo_envio, metodo_pago, pago_estado, subtotal, recargo, descuento, propina, total,
+  direccion_entrega, direccion_mapa, ubicacion_marcada, distancia_envio_m, entrega_lat, entrega_lng, costo_envio, metodo_pago, pago_estado, subtotal, recargo, descuento, propina, total,
   observaciones, creado_en, aceptado_en, listo_en, entregado_en, cancelado_en,
   items_pedido ( id, producto_id, nombre, cantidad, precio_unitario, opciones, acompanamientos )
 `;
@@ -76,6 +76,31 @@ export async function getPedidosDesde(desde: Date): Promise<Pedido[]> {
     .gte('creado_en', desde.toISOString())
     .in('pago_estado', PAGOS_VISIBLES)
     .order('creado_en', { ascending: false });
+  if (error) throw error;
+  return (data as PedidoRow[]).map(pedidoDesdeRow);
+}
+
+// Tope explícito de filas para las consultas por rango del resumen. Alto para
+// no cortar el uso normal (un mes cargado entra holgado), pero acota la
+// consulta y permite detectar truncado: si la respuesta llega a este número,
+// el resumen avisa que el período puede estar incompleto y las métricas
+// podrían subcontar. Así no dependemos de un tope invisible del servidor.
+export const LIMITE_PEDIDOS_RANGO = 5000;
+
+// Resumen de pedidos: todos los estados entre dos fechas (el límite superior
+// es exclusivo). Para los filtros por día/semana/mes/rango del resumen de
+// ventas, que acota la consulta en el servidor en vez de traer todo el
+// historial y filtrarlo en la app.
+export async function getPedidosEntre(desde: Date, hasta: Date): Promise<Pedido[]> {
+  asegurarConfiguracion();
+  const { data, error } = await supabase
+    .from('pedidos')
+    .select(COLUMNAS_PEDIDO)
+    .gte('creado_en', desde.toISOString())
+    .lt('creado_en', hasta.toISOString())
+    .in('pago_estado', PAGOS_VISIBLES)
+    .order('creado_en', { ascending: false })
+    .limit(LIMITE_PEDIDOS_RANGO);
   if (error) throw error;
   return (data as PedidoRow[]).map(pedidoDesdeRow);
 }

@@ -1,12 +1,20 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Linking, Pressable, StyleSheet, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import type { EstadoPedido, ItemPedido, Pedido } from '@sabor/types';
 import { acentoAlpha, Button, colors, radii, spacing, Text, VerEnMapa } from '@sabor/ui';
-import { ETIQUETA_PAGO, ETIQUETA_PAGO_ESTADO, formatPrice, horaCorta, numeroPedido, tiempoTranscurrido } from '@sabor/utils';
+import {
+  enlaceWhatsApp,
+  ETIQUETA_PAGO,
+  ETIQUETA_PAGO_ESTADO,
+  formatPrice,
+  horaCorta,
+  numeroPedido,
+  tiempoTranscurrido,
+} from '@sabor/utils';
 
 import { CONTEXTO_MAPA } from '../constants/mapa';
-import { avisarClienteListo, avisarDeliveryListo, compartirConDelivery } from '../services/compartirDelivery';
+import { avisarClienteListo, avisarDeliveryListo, compartirConDelivery, consultaMapaPedido } from '../services/compartirDelivery';
 import { useRepartidorStore } from '../stores/useRepartidorStore';
 import { usePedidosEnVivoStore } from '../stores/usePedidosEnVivo';
 
@@ -42,16 +50,45 @@ export function TarjetaPedido({ pedido }: { pedido: Pedido }) {
   const [abierta, setAbierta] = useState(pedido.estado === 'por_aceptar');
   const [confirmarRechazo, setConfirmarRechazo] = useState(false);
   const numeroRepartidor = useRepartidorStore((s) => s.whatsapp);
+  // Paso de la doble confirmación de la acción principal:
+  // 0 = sin confirmar (se ve el botón), 1 = primer "Sí", 2 = segundo "Sí".
+  // Solo aplica a "listo" y "entregado"; "Aceptar" es un toque simple.
+  const [pasoAccion, setPasoAccion] = useState<0 | 1 | 2>(0);
+
+  // Si el estado cambia en vivo (realtime) mientras hay una confirmación en
+  // curso, se reinicia el paso: evita avanzar al estado siguiente sin querer
+  // (ej. el pedido pasó a "listo" en otro dispositivo mientras el staff
+  // confirmaba "listo", y al confirmar saltaría a "entregado").
+  useEffect(() => {
+    setPasoAccion(0);
+  }, [pedido.estado]);
 
   const cantidadProductos = pedido.items.reduce((acc, i) => acc + i.cantidad, 0);
   const minutos = (Date.now() - new Date(pedido.creadoEn).getTime()) / 60_000;
   const demorado = pedido.estado === 'por_aceptar' && minutos >= DEMORA_ALERTA_MIN;
   const accion = accionPrincipal(pedido);
   const esDelivery = pedido.metodoEntrega === 'delivery';
+  const esAccionDoble = accion?.estado === 'listo' || accion?.estado === 'entregado';
+
+  // Mensaje del primer paso de la doble confirmación, según la acción.
+  const mensajePaso1 =
+    accion?.estado === 'listo'
+      ? '¿Confirmar que el pedido está listo?'
+      : accion?.estado === 'entregado' && pedido.metodoEntrega === 'retiro_local'
+        ? '¿Confirmar que el pedido fue retirado?'
+        : '¿Confirmar que el pedido fue entregado?';
+  const mensajePaso2 = '¿Estás seguro? Esta acción avisa al cliente y no se puede deshacer.';
+
+  // Expandir/colapsar: al colapsar se cancela la confirmación en curso para
+  // que no quede estado obsoleto al volver a abrir la tarjeta.
+  const alternarAbierta = () => {
+    if (abierta) setPasoAccion(0);
+    setAbierta((a) => !a);
+  };
 
   return (
     <View style={[styles.tarjeta, pedido.estado === 'por_aceptar' && styles.tarjetaNueva, demorado && styles.tarjetaDemorada]}>
-      <Pressable onPress={() => setAbierta((a) => !a)} accessibilityRole="button" accessibilityLabel={`Pedido ${numeroPedido(pedido.numero)}`}>
+      <Pressable onPress={alternarAbierta} accessibilityRole="button" accessibilityLabel={`Pedido ${numeroPedido(pedido.numero)}`}>
         <View style={styles.fila}>
           <Text style={styles.numero}>{numeroPedido(pedido.numero)}</Text>
           <View style={[styles.badge, esDelivery ? styles.badgeDelivery : styles.badgeRetiro]}>
@@ -89,7 +126,7 @@ export function TarjetaPedido({ pedido }: { pedido: Pedido }) {
             <Ionicons name="person-outline" size={16} color={colors.textSecondary} />
             <Text style={styles.clienteNombre}>{pedido.nombreCliente}</Text>
             <Pressable
-              onPress={() => Linking.openURL(`https://wa.me/${pedido.celularCliente.replace(/\D/g, '')}`)}
+              onPress={() => Linking.openURL(enlaceWhatsApp(pedido.celularCliente))}
               hitSlop={6}
             >
               <Text style={styles.enlace}>{pedido.celularCliente}</Text>
@@ -97,15 +134,32 @@ export function TarjetaPedido({ pedido }: { pedido: Pedido }) {
           </View>
           {esDelivery ? (
             <View>
-              <View style={styles.cliente}>
-                <Ionicons name="location-outline" size={16} color={colors.textSecondary} />
-                <Text style={styles.direccion}>{pedido.direccionEntrega}</Text>
+            <View style={styles.cliente}>
+              <Ionicons name="location-outline" size={16} color={colors.textSecondary} />
+              <View style={{ flex: 1, gap: 2 }}>
+                <Text style={styles.direccion}>
+                  {pedido.direccionEntrega}
+                  {pedido.distanciaEnvioKm != null ? ` · ${String(pedido.distanciaEnvioKm).replace('.', ',')} km` : ''}
+                </Text>
+                {/* Dónde quedó el punto: si el cliente movió el pin, puede ser otra calle. */}
+                {pedido.direccionMapa ? (
+                  <Text style={[styles.direccionMapa, pedido.ubicacionMarcada && styles.direccionMarcada]}>
+                    {pedido.ubicacionMarcada ? '📍 Marcó en el mapa: ' : 'En el mapa: '}
+                    {pedido.direccionMapa.replace(' (marcado en el mapa)', '')}
+                  </Text>
+                ) : null}
               </View>
-              <VerEnMapa direccion={pedido.direccionEntrega ?? ''} contexto={CONTEXTO_MAPA} />
-              <Pressable onPress={() => void compartirConDelivery(pedido)} style={styles.compartir} accessibilityRole="button">
-                <Ionicons name="share-social-outline" size={16} color={colors.acento} />
-                <Text style={styles.compartirTexto}>Compartir con delivery</Text>
-              </Pressable>
+            </View>
+            <VerEnMapa
+              direccion={pedido.direccionEntrega ?? ''}
+              contexto={CONTEXTO_MAPA}
+              coordenadas={pedido.entregaUbicacion ? { latitud: pedido.entregaUbicacion.lat, longitud: pedido.entregaUbicacion.lng } : null}
+              direccionGoogle={consultaMapaPedido(pedido)}
+            />
+            <Pressable onPress={() => void compartirConDelivery(pedido)} style={styles.compartir} accessibilityRole="button">
+              <Ionicons name="share-social-outline" size={16} color={colors.acento} />
+              <Text style={styles.compartirTexto}>Compartir con delivery</Text>
+            </Pressable>
             </View>
           ) : null}
 
@@ -151,7 +205,7 @@ export function TarjetaPedido({ pedido }: { pedido: Pedido }) {
                 </View>
               </View>
             ) : (
-              <Pressable onPress={() => setConfirmarRechazo(true)} style={styles.rechazar} hitSlop={6}>
+              <Pressable onPress={() => { setConfirmarRechazo(true); setPasoAccion(0); }} style={styles.rechazar} hitSlop={6}>
                 <Text style={styles.rechazarTexto}>Rechazar pedido</Text>
               </Pressable>
             )
@@ -184,7 +238,33 @@ export function TarjetaPedido({ pedido }: { pedido: Pedido }) {
       ) : null}
 
       {accion && !confirmarRechazo ? (
-        <Button label={accion.label} onPress={() => void cambiarEstado(pedido.id, accion.estado)} style={styles.botonPrincipal} />
+        esAccionDoble && pasoAccion > 0 ? (
+          <View style={styles.confirmar}>
+            <Text style={styles.confirmarTexto}>{pasoAccion === 1 ? mensajePaso1 : mensajePaso2}</Text>
+            <View style={styles.acciones}>
+              <Button label="No" variante="contorno" onPress={() => setPasoAccion(0)} style={styles.accion} />
+              <Button
+                label={pasoAccion === 1 ? 'Sí, continuar' : 'Sí, confirmar'}
+                variante="primario"
+                onPress={() => {
+                  if (pasoAccion === 1) {
+                    setPasoAccion(2);
+                  } else {
+                    setPasoAccion(0);
+                    void cambiarEstado(pedido.id, accion.estado);
+                  }
+                }}
+                style={styles.accion}
+              />
+            </View>
+          </View>
+        ) : (
+          <Button
+            label={accion.label}
+            onPress={() => (esAccionDoble ? setPasoAccion(1) : void cambiarEstado(pedido.id, accion.estado))}
+            style={styles.botonPrincipal}
+          />
+        )
       ) : null}
     </View>
   );
@@ -260,6 +340,8 @@ const styles = StyleSheet.create({
   compartirTexto: { color: colors.acento, fontSize: 14, fontWeight: '700' },
   enlace: { color: colors.whatsapp, fontSize: 14, fontWeight: '600' },
   direccion: { color: colors.textPrimary, fontSize: 14, flex: 1 },
+  direccionMapa: { color: colors.textSecondary, fontSize: 13 },
+  direccionMarcada: { color: colors.acento, fontWeight: '600' },
 
   items: { gap: spacing.sm, marginTop: spacing.xs },
   item: { gap: 2 },

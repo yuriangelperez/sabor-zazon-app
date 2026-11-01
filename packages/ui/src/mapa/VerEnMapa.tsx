@@ -13,6 +13,8 @@ interface VerEnMapaProps {
   contexto?: string;
   /** Coordenadas ya conocidas: se usan directo, sin buscar la dirección. */
   coordenadas?: { latitud: number; longitud: number } | null;
+  /** Texto exacto para "Abrir en Google Maps" (si no, se usa la dirección con su contexto). */
+  direccionGoogle?: string;
   /** Muestra el mapa abierto desde el principio. */
   abiertoInicial?: boolean;
   /** Cambiarlo abre el mapa y lo vuelve a buscar (p. ej. al tocar Enter en el campo). */
@@ -26,13 +28,14 @@ const ESPERA_MS = 700;
  * "Ver en el mapa": el mapa de OpenStreetMap se arma buscando la dirección escrita,
  * y "Abrir en Google Maps" abre Google Maps con esa misma dirección en texto.
  */
-export function VerEnMapa({ direccion, contexto, coordenadas = null, abiertoInicial = false, pedido = 0 }: VerEnMapaProps) {
+export function VerEnMapa({ direccion, contexto, coordenadas = null, direccionGoogle, abiertoInicial = false, pedido = 0 }: VerEnMapaProps) {
   const [abierto, setAbierto] = useState(abiertoInicial);
   const [pedidoVisto, setPedidoVisto] = useState(pedido);
   const [buscando, setBuscando] = useState(false);
   const [punto, setPunto] = useState(coordenadas);
   const [sinResultado, setSinResultado] = useState(false);
   const consulta = consultaCompleta(direccion, contexto);
+  const puntoMostrado = coordenadas ?? punto;
 
   if (pedido !== pedidoVisto) {
     setPedidoVisto(pedido);
@@ -74,12 +77,12 @@ export function VerEnMapa({ direccion, contexto, coordenadas = null, abiertoInic
 
       {abierto ? (
         <>
-          {punto && !sinResultado ? <MapaItem latitud={punto.latitud} longitud={punto.longitud} titulo={consulta} /> : null}
+          {puntoMostrado && !sinResultado ? <MapaItem latitud={puntoMostrado.latitud} longitud={puntoMostrado.longitud} titulo={consulta} /> : null}
           {buscando ? <ActivityIndicator size="small" color={colors.acento} /> : null}
           {sinResultado && !buscando ? (
             <Text style={styles.hint}>No encontramos esa dirección en el mapa. Revisá cómo está escrita.</Text>
           ) : null}
-          <Pressable accessibilityRole="link" onPress={() => void abrirDireccionEnMapa(consulta)} style={styles.link}>
+          <Pressable accessibilityRole="link" onPress={() => void abrirDireccionEnMapa(direccionGoogle ?? consulta)} style={styles.link}>
             <Text style={styles.secundario}>Abrir en Google Maps</Text>
           </Pressable>
         </>

@@ -5,12 +5,12 @@ import { getConfiguracion, guardarHorario, mensajeError, pausarRecepcion, suscri
 import { Button, colors, radii, Selector, spacing, Text, TextInput } from '@sabor/ui';
 import { describirMomento, estaAbierto, HORAS_DEL_DIA, pausaVigente } from '@sabor/utils';
 
-import { ZonasEnvioPanel } from '../../components/ZonasEnvioPanel';
-import { activarAvisos, useAvisosStore } from '../../services/notificaciones';
+import { EnvioPanel } from '../../components/EnvioPanel';
+import { activarAvisos, pedirPermisoEscritorio, useAvisosStore } from '../../services/notificaciones';
 import { useRepartidorStore } from '../../stores/useRepartidorStore';
 import { useSesionStore } from '../../stores/useSesionStore';
 
-// RF-13 (cerrar tienda), zonas y costos de envío, avisos y cuenta. Los ingredientes agotados están en Menú.
+// RF-13 (cerrar tienda), tarifa de envío por km, avisos y cuenta. Los ingredientes agotados están en Menú.
 export default function Ajustes() {
   const { perfil, salir } = useSesionStore();
   const avisos = useAvisosStore();
@@ -144,7 +144,7 @@ export default function Ajustes() {
       </Seccion>
 
       <Seccion titulo="Envíos">
-        <ZonasEnvioPanel />
+        {config ? <EnvioPanel config={config} onGuardado={cargar} /> : <Text style={styles.ayuda}>Cargando…</Text>}
         <Text style={styles.ayuda}>
           WhatsApp del repartidor (con código de país, ej. 5491112345678). Con "Pedido listo", el botón "Avisar al delivery"
           abre ese chat; si queda vacío, elegís el contacto cada vez.
@@ -159,7 +159,21 @@ export default function Ajustes() {
         />
       </Seccion>
 
-      {Platform.OS !== 'web' ? (
+      {Platform.OS === 'web' ? (
+        <Seccion titulo="Avisos de escritorio">
+          <View style={[styles.estado, avisos.estado === 'activos' ? styles.estadoActivo : styles.estadoPausado]}>
+            <Text style={styles.estadoTexto}>
+              {avisos.estado === 'activos'
+                ? 'Activados: cada pedido nuevo avisa con sonido y notificación, aunque estés en otra ventana. Dejá esta pestaña abierta.'
+                : 'Los pedidos nuevos no avisan fuera de esta pestaña.'}
+            </Text>
+          </View>
+          {avisos.detalle ? <Text style={styles.ayuda}>{avisos.detalle}</Text> : null}
+          {avisos.estado === 'sin_permiso' ? (
+            <Button label="Activar notificaciones" variante="contorno" onPress={() => void pedirPermisoEscritorio()} />
+          ) : null}
+        </Seccion>
+      ) : (
         <Seccion titulo="Avisos de pedidos">
           <View style={[styles.estado, avisos.estado === 'activos' ? styles.estadoActivo : styles.estadoPausado]}>
             <Text style={styles.estadoTexto}>
@@ -177,7 +191,7 @@ export default function Ajustes() {
             <Button label="Reintentar" variante="contorno" onPress={() => void activarAvisos()} />
           ) : null}
         </Seccion>
-      ) : null}
+      )}
 
       <Seccion titulo="Cuenta">
         <Text style={styles.cuenta}>{perfil?.nombre ?? perfil?.email}</Text>

@@ -1,8 +1,18 @@
 import { Linking, Platform, Share } from 'react-native';
 import type { Pedido } from '@sabor/types';
 import { consultaCompleta, urlGoogleMaps } from '@sabor/ui';
+import { enlaceWhatsApp } from '@sabor/utils';
 
 import { CONTEXTO_MAPA } from '../constants/mapa';
+
+/**
+ * Lo que se busca en Google Maps: si el cliente marcó el pin, la dirección donde quedó
+ * (legible y exacta); si no, la dirección que escribió con la ciudad.
+ */
+export function consultaMapaPedido(pedido: Pedido) {
+  const marcada = pedido.ubicacionMarcada && pedido.direccionMapa ? pedido.direccionMapa.replace(' (marcado en el mapa)', '').trim() : '';
+  return marcada || consultaCompleta(pedido.direccionEntrega ?? '', CONTEXTO_MAPA);
+}
 
 /** Texto para el repartidor: cliente, celular, dirección escrita, link de Google Maps y observaciones. */
 export function mensajeDelivery(pedido: Pedido) {
@@ -12,7 +22,7 @@ export function mensajeDelivery(pedido: Pedido) {
     `Nombre: ${pedido.nombreCliente}`,
     `Celular: ${pedido.celularCliente}`,
     `Dirección: ${direccion}`,
-    `Mapa: ${urlGoogleMaps(consultaCompleta(direccion, CONTEXTO_MAPA))}`,
+    `Mapa: ${urlGoogleMaps(consultaMapaPedido(pedido))}`,
   ];
   if (pedido.observaciones?.trim()) {
     lineas.push(`Observaciones: ${pedido.observaciones.trim()}`);
@@ -43,7 +53,7 @@ export function mensajeClienteListo(pedido: Pedido) {
 }
 
 export const avisarClienteListo = (pedido: Pedido) =>
-  Linking.openURL(urlWhatsapp(mensajeClienteListo(pedido), pedido.celularCliente.replace(/\D/g, '')));
+  Linking.openURL(enlaceWhatsApp(pedido.celularCliente, mensajeClienteListo(pedido)));
 
 /** Avisa al repartidor (con su número guardado, o eligiendo el contacto si no hay). */
 export const avisarDeliveryListo = (pedido: Pedido, numeroRepartidor?: string) =>
