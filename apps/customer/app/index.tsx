@@ -10,6 +10,7 @@ import { formatPrice, precioConDescuento } from '@sabor/utils';
 import { CartBar } from '../components/CartBar';
 import { Contenedor } from '../components/Contenedor';
 import { EstadoLocalBanner } from '../components/EstadoLocalBanner';
+import { MapaLocal } from '../components/MapaLocal';
 import { PedidoEnCursoBanner } from '../components/PedidoEnCursoBanner';
 import { LOCAL, whatsappUrl } from '../constants/local';
 import { useLocal } from '../hooks/useLocal';
@@ -155,7 +156,7 @@ export default function Home() {
             <TarjetaInfo icono="location-outline" titulo="Ubicación">
               <Text style={styles.infoDestacado}>{LOCAL.calle}</Text>
               <Text style={styles.infoTexto}>{LOCAL.localidad}</Text>
-              <Canal onPress={() => Linking.openURL(LOCAL.mapsUrl)}>Ver en Maps</Canal>
+              <MapaLocal direccion={LOCAL.direccionMapa} coordenadas={LOCAL.coordenadas} />
             </TarjetaInfo>
 
             <TarjetaInfo icono="call-outline" titulo="Contacto directo">

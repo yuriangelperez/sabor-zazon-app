@@ -7,8 +7,10 @@ export const LOCAL = {
   eslogan: 'El auténtico sabor venezolano',
   calle: 'San Ignacio 663',
   localidad: 'Manuel Alberti, Pilar, Buenos Aires, Argentina',
-  mapsUrl:
-    'https://www.google.com/maps/search/?api=1&query=San+Ignacio+663,+Manuel+Alberti,+Pilar,+Buenos+Aires',
+  // Dirección para ubicar el local en el mapa de la app. Si conocés las coordenadas exactas,
+  // cargalas en `coordenadas` y no se busca la dirección.
+  direccionMapa: 'San Ignacio 663, Manuel Alberti, Pilar, Buenos Aires, Argentina',
+  coordenadas: null as { latitud: number; longitud: number } | null,
   horario: { apertura: '10:00', cierre: '22:00' } satisfies HorarioLocal,
   diasAtencion: 'Lunes a Domingo',
   whatsapps: [
