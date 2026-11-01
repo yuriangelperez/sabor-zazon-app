@@ -4,13 +4,12 @@ import { router, type Href } from 'expo-router';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
-import { acentoAlpha, Button, colors, fuenteImagen, radii, spacing, Text } from '@sabor/ui';
+import { acentoAlpha, Button, colors, fuenteImagen, radii, spacing, Text, VerEnMapa } from '@sabor/ui';
 import { formatPrice, precioConDescuento } from '@sabor/utils';
 
 import { CartBar } from '../components/CartBar';
 import { Contenedor } from '../components/Contenedor';
 import { EstadoLocalBanner } from '../components/EstadoLocalBanner';
-import { MapaLocal } from '../components/MapaLocal';
 import { PedidoEnCursoBanner } from '../components/PedidoEnCursoBanner';
 import { LOCAL, whatsappUrl } from '../constants/local';
 import { useLocal } from '../hooks/useLocal';
@@ -156,7 +155,7 @@ export default function Home() {
             <TarjetaInfo icono="location-outline" titulo="Ubicación">
               <Text style={styles.infoDestacado}>{LOCAL.calle}</Text>
               <Text style={styles.infoTexto}>{LOCAL.localidad}</Text>
-              <MapaLocal direccion={LOCAL.direccionMapa} coordenadas={LOCAL.coordenadas} />
+              <VerEnMapa direccion={LOCAL.direccionMapa} coordenadas={LOCAL.coordenadas} abiertoInicial />
             </TarjetaInfo>
 
             <TarjetaInfo icono="call-outline" titulo="Contacto directo">

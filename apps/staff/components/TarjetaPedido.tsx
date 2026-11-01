@@ -2,10 +2,13 @@ import { useState } from 'react';
 import { Linking, Pressable, StyleSheet, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import type { EstadoPedido, ItemPedido, Pedido } from '@sabor/types';
-import { acentoAlpha, Button, colors, radii, spacing, Text } from '@sabor/ui';
+import { acentoAlpha, Button, colors, radii, spacing, Text, VerEnMapa } from '@sabor/ui';
 import { ETIQUETA_PAGO, ETIQUETA_PAGO_ESTADO, formatPrice, horaCorta, numeroPedido, tiempoTranscurrido } from '@sabor/utils';
 
 import { usePedidosEnVivoStore } from '../stores/usePedidosEnVivo';
+
+// Ciudad que se agrega a la búsqueda cuando el cliente escribe solo calle y número.
+const CONTEXTO_MAPA = 'Pilar, Buenos Aires, Argentina';
 
 // Minutos sin aceptar a partir de los cuales la tarjeta se marca en rojo.
 const DEMORA_ALERTA_MIN = 5;
@@ -92,9 +95,12 @@ export function TarjetaPedido({ pedido }: { pedido: Pedido }) {
             </Pressable>
           </View>
           {esDelivery ? (
-            <View style={styles.cliente}>
-              <Ionicons name="location-outline" size={16} color={colors.textSecondary} />
-              <Text style={styles.direccion}>{pedido.direccionEntrega}</Text>
+            <View>
+              <View style={styles.cliente}>
+                <Ionicons name="location-outline" size={16} color={colors.textSecondary} />
+                <Text style={styles.direccion}>{pedido.direccionEntrega}</Text>
+              </View>
+              <VerEnMapa direccion={pedido.direccionEntrega ?? ''} contexto={CONTEXTO_MAPA} />
             </View>
           ) : null}
 

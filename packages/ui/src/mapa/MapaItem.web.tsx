@@ -1,5 +1,5 @@
 import { StyleSheet, View } from 'react-native';
-import { colors, radii } from '@sabor/ui';
+import { colors, radii } from '../theme';
 
 import { urlMapaOsm } from './mapaOsm';
 

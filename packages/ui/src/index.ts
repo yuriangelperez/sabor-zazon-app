@@ -7,3 +7,6 @@ export * from './QuantityStepper';
 export * from './EncabezadoBandera';
 export * from './Selector';
 export * from './imagenes';
+export * from './mapa/VerEnMapa';
+export * from './mapa/MapaItem';
+export * from './mapa/ubicacion';

@@ -1,6 +1,6 @@
 import { StyleSheet, View } from 'react-native';
 import { WebView } from 'react-native-webview';
-import { colors, radii } from '@sabor/ui';
+import { colors, radii } from '../theme';
 
 import { urlMapaOsm } from './mapaOsm';
 

@@ -33,7 +33,19 @@ export async function buscarCoordenadas(direccion: string): Promise<{ latitud: n
   }
 }
 
-/** Abre Google Maps buscando la dirección: pestaña nueva en web, app de mapas en el celular. */
+/** Une la dirección escrita con ciudad/provincia (si no las trae) para que el buscador no se confunda. */
+export function consultaCompleta(direccion: string, contexto?: string) {
+  const consulta = direccion.trim();
+  if (!consulta || !contexto) {
+    return consulta;
+  }
+  return consulta.toLowerCase().includes(contexto.split(',')[0].trim().toLowerCase()) ? consulta : `${consulta}, ${contexto}`;
+}
+
+/**
+ * Abre Google Maps buscando la dirección escrita (nunca coordenadas), así se ve
+ * "San Ignacio 663" y no un par de números. Pestaña nueva en web, app de mapas en el celular.
+ */
 export function abrirDireccionEnMapa(direccion: string) {
   const consulta = direccion.trim();
   if (!consulta) {
