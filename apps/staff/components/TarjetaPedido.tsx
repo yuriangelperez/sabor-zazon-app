@@ -5,10 +5,9 @@ import type { EstadoPedido, ItemPedido, Pedido } from '@sabor/types';
 import { acentoAlpha, Button, colors, radii, spacing, Text, VerEnMapa } from '@sabor/ui';
 import { ETIQUETA_PAGO, ETIQUETA_PAGO_ESTADO, formatPrice, horaCorta, numeroPedido, tiempoTranscurrido } from '@sabor/utils';
 
+import { CONTEXTO_MAPA } from '../constants/mapa';
+import { compartirConDelivery } from '../services/compartirDelivery';
 import { usePedidosEnVivoStore } from '../stores/usePedidosEnVivo';
-
-// Ciudad que se agrega a la búsqueda cuando el cliente escribe solo calle y número.
-const CONTEXTO_MAPA = 'Pilar, Buenos Aires, Argentina';
 
 // Minutos sin aceptar a partir de los cuales la tarjeta se marca en rojo.
 const DEMORA_ALERTA_MIN = 5;
@@ -101,6 +100,10 @@ export function TarjetaPedido({ pedido }: { pedido: Pedido }) {
                 <Text style={styles.direccion}>{pedido.direccionEntrega}</Text>
               </View>
               <VerEnMapa direccion={pedido.direccionEntrega ?? ''} contexto={CONTEXTO_MAPA} />
+              <Pressable onPress={() => void compartirConDelivery(pedido)} style={styles.compartir} accessibilityRole="button">
+                <Ionicons name="share-social-outline" size={16} color={colors.acento} />
+                <Text style={styles.compartirTexto}>Compartir con delivery</Text>
+              </Pressable>
             </View>
           ) : null}
 
@@ -227,6 +230,8 @@ const styles = StyleSheet.create({
   detalle: { gap: spacing.sm, borderTopWidth: 1, borderTopColor: colors.border, paddingTop: spacing.sm },
   cliente: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm, flexWrap: 'wrap' },
   clienteNombre: { color: colors.textPrimary, fontSize: 14, fontWeight: '600' },
+  compartir: { flexDirection: 'row', alignItems: 'center', gap: spacing.xs + 2, alignSelf: 'flex-start', paddingVertical: spacing.xs },
+  compartirTexto: { color: colors.acento, fontSize: 14, fontWeight: '700' },
   enlace: { color: colors.whatsapp, fontSize: 14, fontWeight: '600' },
   direccion: { color: colors.textPrimary, fontSize: 14, flex: 1 },
 

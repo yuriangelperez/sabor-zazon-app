@@ -42,6 +42,11 @@ export function consultaCompleta(direccion: string, contexto?: string) {
   return consulta.toLowerCase().includes(contexto.split(',')[0].trim().toLowerCase()) ? consulta : `${consulta}, ${contexto}`;
 }
 
+/** Enlace de Google Maps que busca la dirección en texto (nunca coordenadas). */
+export function urlGoogleMaps(direccion: string) {
+  return `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(direccion.trim())}`;
+}
+
 /**
  * Abre Google Maps buscando la dirección escrita (nunca coordenadas), así se ve
  * "San Ignacio 663" y no un par de números. Pestaña nueva en web, app de mapas en el celular.
@@ -52,7 +57,7 @@ export function abrirDireccionEnMapa(direccion: string) {
     return Promise.resolve();
   }
 
-  const url = `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(consulta)}`;
+  const url = urlGoogleMaps(consulta);
   // En web, Linking.openURL abre una pestaña nueva.
   return Linking.openURL(url);
 }
